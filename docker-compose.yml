@@ -1,9 +1,6 @@
-version: '3.8'
-
 services:
-  
   db:
-    image: postgres:15
+    image: postgis/postgis:15-3.3
     container_name: blood_donation_db
     restart: always
     environment:
@@ -14,6 +11,18 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: blood_donation_api
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://admin:password123@db:5432/blood_donation
 
 volumes:
   postgres_data:

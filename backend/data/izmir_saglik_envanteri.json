@@ -1,0 +1,952 @@
+[
+    {
+        "ADI":"Aliağa Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ALİAĞA",
+        "ENLEM":38.7870453531,
+        "BOYLAM":26.9749834035,
+        "TAM_ADRES":"YENİ MAH. RUMELİ SOK. NO:7 ALİAĞA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Atatürk Eğitim Ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARABAĞLAR",
+        "ENLEM":38.3977502471,
+        "BOYLAM":27.1038030369,
+        "TAM_ADRES":"BASIN SİTESİ MAH. POLAT SOK. NO:106 KARABAĞLAR\/İZMİR",
+        "PARENT_ADI":"Atatürk Eğitim Ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Atatürk Eğitim ve Araştırma Hastanesi Hatay Ek Hizmet Binası",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4027304052,
+        "BOYLAM":27.112206217,
+        "TAM_ADRES":"MURAT REİS MAH. İNÖNÜ SOK. NO:256\/1 KONAK\/İZMİR",
+        "PARENT_ADI":"Atatürk Eğitim Ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Bakırçay Üniversitesi Çiğli Eğitim Ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÇİĞLİ",
+        "ENLEM":38.4995921247,
+        "BOYLAM":27.0493291309,
+        "TAM_ADRES":"YENİ MAHALLE MAH. MURAT KARAYALÇIN SOK. NO:18 ÇİĞLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Başkent Üniversitesi Zübeyde Hanım Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARŞIYAKA",
+        "ENLEM":38.4718474499,
+        "BOYLAM":27.0862344808,
+        "TAM_ADRES":"YALI MAH. 6471\/5 SOK. NO:7 KARŞIYAKA\/İZMİR",
+        "PARENT_ADI":"Başkent Üniversitesi Zübeyde Hanım Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Başkent Üniversitesi Zübeyde Hanım Uygulama ve Araştırma Merkezi",
+        "TIPI":"Hastane",
+        "ILCE":"KARŞIYAKA",
+        "ENLEM":38.4639228867,
+        "BOYLAM":27.0933139365,
+        "TAM_ADRES":"BOSTANLI MAH. CAHER DUDAYEV SOK. NO:175 KARŞIYAKA\/İZMİR",
+        "PARENT_ADI":"Başkent Üniversitesi Zübeyde Hanım Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Bayındır Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BAYINDIR",
+        "ENLEM":38.2215348833,
+        "BOYLAM":27.6496005431,
+        "TAM_ADRES":"MİTHATPAŞA MAH. HASTANE SOK. NO:35 BAYINDIR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Bergama Necla-Mithat Öztüre Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BERGAMA",
+        "ENLEM":39.11836424,
+        "BOYLAM":27.1979938859,
+        "TAM_ADRES":"İSLAMSARAY MAH. ADNAN MENDERES SOK. NO:223 BERGAMA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Bornova Türkan Özilhan Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4590021948,
+        "BOYLAM":27.2504882628,
+        "TAM_ADRES":"EVKA 3 MAH. ANKARA SOK. NO:305A BORNOVA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Buca Kadın Doğum ve Çocuk Hastalıkları Ek Hizmet Binası",
+        "TIPI":"Hastane",
+        "ILCE":"BUCA",
+        "ENLEM":38.3761854027,
+        "BOYLAM":27.1808131327,
+        "TAM_ADRES":"ATATÜRK MAH. HOCA AHMET YESEVİ SOK. NO:27 BUCA\/İZMİR",
+        "PARENT_ADI":"Buca Seyfi Demirsoy Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Buca Seyfi Demirsoy Eğitim ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BUCA",
+        "ENLEM":38.3845217201,
+        "BOYLAM":27.1633148748,
+        "TAM_ADRES":"KOZAĞAÇ MAH. ÖZMEN SOK. NO:145-147 BUCA\/İZMİR",
+        "PARENT_ADI":"Buca Seyfi Demirsoy Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Çeşme Alper Çizgenakat Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÇEŞME",
+        "ENLEM":38.316858929,
+        "BOYLAM":26.3256474465,
+        "TAM_ADRES":"FAHRETTİNPAŞA MAH. 2222\/1 SOK. NO:2 ÇEŞME\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Dikili Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"DİKİLİ",
+        "ENLEM":39.0649107301,
+        "BOYLAM":26.8924322917,
+        "TAM_ADRES":"SALİMBEY MAH. REYHAN SOK. NO:14A DİKİLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Dokuz Eylül Üniversitesi Uygulama Ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BALÇOVA",
+        "ENLEM":38.3941773326,
+        "BOYLAM":27.0331047436,
+        "TAM_ADRES":"İNCİRALTI MAH. MİTHATPAŞA SOK. NO:1460\/19 BALÇOVA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Dr. Behçet Uz Çocuk Hastalıkları ve Cerrahisi Eğt. Arş. Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4276826594,
+        "BOYLAM":27.1386632216,
+        "TAM_ADRES":"İSMET KAPTAN MAH. SEZER DOĞAN SOK. NO:11 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Dr. E. Hayri Üstündağ Kadın Hastalıkları ve Doğum Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4148353222,
+        "BOYLAM":27.1292705679,
+        "TAM_ADRES":"SÜMER MAH. 451 SOK. NO:2 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Ege Üniversite Hastanesi Çocuk Acil Servisi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4543132906,
+        "BOYLAM":27.2137402879,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9\/7 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Ege üniversitesi Acil Servis",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4568451503,
+        "BOYLAM":27.2094022837,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:854C BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ege Üniversitesi Göğüs Hastalıkları Ana Bilim Dalı",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4555294558,
+        "BOYLAM":27.2074953781,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9\/62 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ege Üniversitesi Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4560515385,
+        "BOYLAM":27.2098066984,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9\/53 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Ege Üniversitesi Hastanesi Sağlık Uygulama Ve Araştırma Merkezi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4561154886,
+        "BOYLAM":27.2108995126,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ege Üniversitesi Nükleer Tıp Merkezi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.454326264,
+        "BOYLAM":27.2085418054,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9\/67 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ege Üniversitesi Tıp Fakültesi Çocuk Kalp ve Damar Cerrahisi Bilim Dalı",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.456396076,
+        "BOYLAM":27.2086129496,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Eşrefpaşa Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4235574445,
+        "BOYLAM":27.1606690586,
+        "TAM_ADRES":"YENİŞEHİR MAH. GAZİLER SOK. NO:315 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Foça Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"FOÇA",
+        "ENLEM":38.6581721362,
+        "BOYLAM":26.7610389769,
+        "TAM_ADRES":"ATATÜRK MAH. ÇAM SOK. NO:7 FOÇA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Gaziemir Nevvar Salih İşgören Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"GAZİEMİR",
+        "ENLEM":38.3110269814,
+        "BOYLAM":27.1331415216,
+        "TAM_ADRES":"SEVGİ MAH. NEVVAR SALİH İŞGÖREN SOK. NO:16 GAZİEMİR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Gureba-i Müslimin Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.415043307,
+        "BOYLAM":27.1289362008,
+        "TAM_ADRES":"SÜMER MAH. 440 SOK. NO:2 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Aliağa Ceza İnfaz Kurumları Kampüs Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ALİAĞA",
+        "ENLEM":38.8810959546,
+        "BOYLAM":27.0966927007,
+        "TAM_ADRES":"BAHÇEDERE MAH. KAPUKAYA SOK. NO:63 ALİAĞA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Alsancak Nevvar Salih İşgören Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4340288906,
+        "BOYLAM":27.1433371555,
+        "TAM_ADRES":"KÜLTÜR MAH. ALİ ÇETİNKAYA SOK. NO:26 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Bozyaka Eğitim ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARABAĞLAR",
+        "ENLEM":38.398132418,
+        "BOYLAM":27.1252743297,
+        "TAM_ADRES":"BAHAR MAH. SAİM ÇIKRIKÇI SOK. NO:59 KARABAĞLAR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Dr. Suat Seren Göğüs Hast. ve Cerrahisi Eğt. Arş. Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4246173899,
+        "BOYLAM":27.1648447253,
+        "TAM_ADRES":"YENİŞEHİR MAH. GAZİLER SOK. NO:331 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Ege Doğumevi ve Kadın Hst. Eğt. Ve Arş. Hastanesi( Tepecik Kadın Doğum hastanesi)",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4236788489,
+        "BOYLAM":27.1675933083,
+        "TAM_ADRES":"EMİR SULTAN MAH. GAZİLER SOK. NO:470 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Ekonomi Üniversitesi (İeü) Özel Medicalpoint Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARŞIYAKA",
+        "ENLEM":38.4737977546,
+        "BOYLAM":27.1116593316,
+        "TAM_ADRES":"İMBATLI MAH. 1825 SOK. NO:12 KARŞIYAKA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Katip Çelebi Üniversitesi Diş Hekimliği Fakültesi Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÇİĞLİ",
+        "ENLEM":38.4901654088,
+        "BOYLAM":27.0777745605,
+        "TAM_ADRES":"AYDINLIKEVLER MAH. 6780 SOK. NO:48 ÇİĞLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Kınık Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KINIK",
+        "ENLEM":39.0896462638,
+        "BOYLAM":27.3629649697,
+        "TAM_ADRES":"POYRACIK MAH. SOMA SOK. NO:24 KINIK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Özel Can Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÇİĞLİ",
+        "ENLEM":38.4830439271,
+        "BOYLAM":27.0581710196,
+        "TAM_ADRES":"ATAŞEHİR MAH. 8019\/16 SOK. NO:18 ÇİĞLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Şehir Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BAYRAKLI",
+        "ENLEM":38.4843673048,
+        "BOYLAM":27.1776541937,
+        "TAM_ADRES":"R.ŞEVKET İNCE MAH. 2148\/11 SOK. NO:1 BAYRAKLI\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Tepecik Eğitim ve Araştırma Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4230120006,
+        "BOYLAM":27.1661562671,
+        "TAM_ADRES":"GÜNEY MAH. GAZİLER SOK. NO:468 KONAK\/İZMİR",
+        "PARENT_ADI":"İzmir Tepecik Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"İzmir Tınaztepe Üniversitesi Özel Galen Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BAYRAKLI",
+        "ENLEM":38.4637923775,
+        "BOYLAM":27.194492024,
+        "TAM_ADRES":"MANAVKUYU MAH. 250 SOK. NO:23 BAYRAKLI\/İZMİR",
+        "PARENT_ADI":"Özel Tınaztepe Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Karaburun İlçe Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARABURUN",
+        "ENLEM":38.635181645,
+        "BOYLAM":26.5223377164,
+        "TAM_ADRES":"İSKELE MAH. KEPEZ SOK. NO:26 KARABURUN\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Kemalpaşa Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KEMALPAŞA",
+        "ENLEM":38.4362530629,
+        "BOYLAM":27.4098155203,
+        "TAM_ADRES":"SEKİZ EYLÜL MAH. KIROVASI SOK. NO:81\/1A KEMALPAŞA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Kiraz Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KİRAZ",
+        "ENLEM":38.2303856028,
+        "BOYLAM":28.218448176,
+        "TAM_ADRES":"CUMHURİYET MAH. KUBİLAY SOK. NO:9 KİRAZ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Menderes Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"MENDERES",
+        "ENLEM":38.238470183,
+        "BOYLAM":27.1361575701,
+        "TAM_ADRES":"CÜNEYTBEY MAH. ÇEVRE YOLU SOK. NO:147 MENDERES\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Menemen Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"MENEMEN",
+        "ENLEM":38.6069980673,
+        "BOYLAM":27.0880098722,
+        "TAM_ADRES":"UĞUR MUMCU MAH. 1249 SOK. NO:13\/1 MENEMEN\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Ödemiş Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÖDEMİŞ",
+        "ENLEM":38.2305231332,
+        "BOYLAM":27.9880694048,
+        "TAM_ADRES":"ZAFER MAH. ORTAÇ SOK. NO:10 ÖDEMİŞ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Acıbadem İzmir Kent Hastanesi ",
+        "TIPI":"Hastane",
+        "ILCE":"ÇİĞLİ",
+        "ENLEM":38.4894778572,
+        "BOYLAM":27.0515848199,
+        "TAM_ADRES":"ATAŞEHİR MAH. 8229\/1 SOK. NO:56 ÇİĞLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Akut Kalp Damar Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"GAZİEMİR",
+        "ENLEM":38.3320689462,
+        "BOYLAM":27.1374768071,
+        "TAM_ADRES":"DOKUZ EYLÜL MAH. 343\/1 SOK. NO:6 GAZİEMİR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Ata Sağlık Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.443073839,
+        "BOYLAM":27.1827300407,
+        "TAM_ADRES":"KAZIMDİRİK MAH. 297 SOK. NO:1 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Batı Anadolu Hastanesi Central Hospital",
+        "TIPI":"Hastane",
+        "ILCE":"BAYRAKLI",
+        "ENLEM":38.4608616498,
+        "BOYLAM":27.1668236517,
+        "TAM_ADRES":"BAYRAKLI MAH. ZEKİ YAVAŞ SOK. NO:2\/2 BAYRAKLI\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Bazekol Çiğli Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"ÇİĞLİ",
+        "ENLEM":38.485420813,
+        "BOYLAM":27.0595989325,
+        "TAM_ADRES":"ATAŞEHİR MAH. 8019\/16 SOK. NO:4 ÇİĞLİ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Çınarlı Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4405967457,
+        "BOYLAM":27.1726643357,
+        "TAM_ADRES":"ÇINARLI MAH. ANADOLU SOK. NO:14 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Dünyagöz Hastanesi İzmir",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4333589539,
+        "BOYLAM":27.148732679,
+        "TAM_ADRES":"MİMAR SİNAN MAH. ALİ ÇETİNKAYA SOK. NO:79 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Ege Yaşam Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARABAĞLAR",
+        "ENLEM":38.3830230431,
+        "BOYLAM":27.112540569,
+        "TAM_ADRES":"ALİ FUAT CEBESOY MAH. 9135\/4 SOK. NO:4 KARABAĞLAR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Egepol Cerrahi Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4002130818,
+        "BOYLAM":27.1280587117,
+        "TAM_ADRES":"GÜNEŞLİ MAH. HALİDE EDİP ADIVAR SOK. NO:3A KONAK\/İZMİR",
+        "PARENT_ADI":"Özel Egepol Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Özel Egepol Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4018243202,
+        "BOYLAM":27.1268674514,
+        "TAM_ADRES":"GÜNEŞLİ MAH. 527 SOK. NO:2 KONAK\/İZMİR",
+        "PARENT_ADI":"Özel Egepol Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Egepol Internatıonal Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4005546118,
+        "BOYLAM":27.1275025548,
+        "TAM_ADRES":"GÜNEŞLİ MAH. HALİDE EDİP ADIVAR SOK. NO:57 KONAK\/İZMİR",
+        "PARENT_ADI":"Özel Egepol Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Özel Emot El ve Mikrocerrahi Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4259535782,
+        "BOYLAM":27.1510414461,
+        "TAM_ADRES":"KAHRAMANLAR MAH. 1418 SOK. NO:16 KONAK\/İZMİR",
+        "PARENT_ADI":"Özel Emot Plus Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Özel Emot Plus Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4257118957,
+        "BOYLAM":27.150869327,
+        "TAM_ADRES":"KAHRAMANLAR MAH. 1418 SOK. NO:18-28 KONAK\/İZMİR",
+        "PARENT_ADI":"Özel Emot Plus Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Gazi Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4295190729,
+        "BOYLAM":27.1519673738,
+        "TAM_ADRES":"KAHRAMANLAR MAH. NEVZAT GÜZELIRMAK SOK. NO:29 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Gözde Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4246519509,
+        "BOYLAM":27.1681152424,
+        "TAM_ADRES":"YENİŞEHİR MAH. GAZİLER SOK. NO:353\/4 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Karataş Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4115286458,
+        "BOYLAM":27.1229606728,
+        "TAM_ADRES":"BARBAROS MAH. AV. SELİM HAKMEN SOK. NO:26 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Karşıyaka Göz Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KARŞIYAKA",
+        "ENLEM":38.4723109899,
+        "BOYLAM":27.0845245809,
+        "TAM_ADRES":"YALI MAH. CAHER DUDAYEV SOK. NO:71 KARŞIYAKA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Kaşkaloğlu Göz Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.4320782647,
+        "BOYLAM":27.1473254282,
+        "TAM_ADRES":"MİMAR SİNAN MAH. 1400 SOK. NO:10 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Medıcana Internatıonal İzmir Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.429632711,
+        "BOYLAM":27.1571755887,
+        "TAM_ADRES":"YENİŞEHİR MAH. İŞÇİLER SOK. NO:126 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Medifama Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"TORBALI",
+        "ENLEM":38.2410522491,
+        "BOYLAM":27.2756694666,
+        "TAM_ADRES":"AYRANCILAR MAH. İZMİR AYDIN SOK. NO:124 TORBALI\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Sada Hastanesi (Ekol Sağlık Grubu)",
+        "TIPI":"Hastane",
+        "ILCE":"MENEMEN",
+        "ENLEM":38.5917245337,
+        "BOYLAM":27.0743757506,
+        "TAM_ADRES":"ESATPAŞA MAH. ÇANAKKALE ASFALTI SOK. NO:171 MENEMEN\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Sağlık Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.432523299,
+        "BOYLAM":27.1491856038,
+        "TAM_ADRES":"MİMAR SİNAN MAH. IŞILAY SAYGIN SOK. NO:25 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Su Hospital Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"KONAK",
+        "ENLEM":38.425130405,
+        "BOYLAM":27.1495984808,
+        "TAM_ADRES":"KAHRAMANLAR MAH. 1397 SOK. NO:1 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Tınaztepe Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BUCA",
+        "ENLEM":38.3702275161,
+        "BOYLAM":27.1936203803,
+        "TAM_ADRES":"KURUÇEŞME MAH. AHMET PİRİŞTİNA SOK. NO:51 BUCA\/İZMİR",
+        "PARENT_ADI":"Özel Tınaztepe Hastanesi",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Özel Tınaztepe Torbalı Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"TORBALI",
+        "ENLEM":38.1428576957,
+        "BOYLAM":27.3670386202,
+        "TAM_ADRES":"TEPEKÖY MAH. AYDIN SOK. NO:336 - 336A TORBALI\/İZMİR",
+        "PARENT_ADI":"Özel Tınaztepe Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Sağlık Bilimleri Üniversitesi Tepecik Eğitim Araştırma Hastanesi Bornova Ek Binası",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4545959724,
+        "BOYLAM":27.2050481167,
+        "TAM_ADRES":"KAZIMDİRİK MAH. SANAYİ SOK. NO:7-9 BORNOVA\/İZMİR",
+        "PARENT_ADI":"İzmir Tepecik Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Seferihisar Necat Hepkon Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"SEFERİHİSAR",
+        "ENLEM":38.1978904782,
+        "BOYLAM":26.8455439511,
+        "TAM_ADRES":"TURABİYE MAH. BEYLER SOK. NO:3 SEFERİHİSAR\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Selçuk Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"SELÇUK",
+        "ENLEM":37.9478267156,
+        "BOYLAM":27.3672574517,
+        "TAM_ADRES":"ATATÜRK MAH. SABRİ YAYLA SOK. NO:1 SELÇUK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Tire Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"TİRE",
+        "ENLEM":38.1006110001,
+        "BOYLAM":27.7217581845,
+        "TAM_ADRES":"ATATÜRK MAH. İNÖNÜ SOK. NO:1 TİRE\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Torbalı Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"TORBALI",
+        "ENLEM":38.1756299917,
+        "BOYLAM":27.3580650189,
+        "TAM_ADRES":"YEDİ EYLÜL MAH. EKOTEN SOK. NO:2 TORBALI\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Tülay Aktaş Onkoloji ve Kemik İliği Transplantasyon Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4536064076,
+        "BOYLAM":27.2083992086,
+        "TAM_ADRES":"KAZIMDİRİK MAH. İZMİR AYDIN OTOYOLU SOK. NO:9\/70 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Urla Devlet Hastanesi",
+        "TIPI":"Hastane",
+        "ILCE":"URLA",
+        "ENLEM":38.3301887462,
+        "BOYLAM":26.7459515425,
+        "TAM_ADRES":"TORASAN MAH. ÖZBEKYOLU SOK. NO:15 URLA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Aliağa Devlet Hastanesi Kan İstasyonu",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"ALİAĞA",
+        "ENLEM":38.7869076557,
+        "BOYLAM":26.9753011863,
+        "TAM_ADRES":"YENİ MAH. 527 SOK. NO:1 ALİAĞA\/İZMİR",
+        "PARENT_ADI":"Aliağa Devlet Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Buca Seyfi Demirsoy Devlet Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"BUCA",
+        "ENLEM":38.3846564541,
+        "BOYLAM":27.1633363845,
+        "TAM_ADRES":"KOZAĞAÇ MAH. ÖZMEN SOK. NO:147 BUCA\/İZMİR",
+        "PARENT_ADI":"Buca Seyfi Demirsoy Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Dokuz Eylül Üniversitesi Tıp Fakültesi Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"BALÇOVA",
+        "ENLEM":38.3952430745,
+        "BOYLAM":27.0327507794,
+        "TAM_ADRES":"İNCİRALTI MAH. MİTHATPAŞA SOK. NO:56 BALÇOVA\/İZMİR",
+        "PARENT_ADI":"Dokuz Eylül Üniversitesi Uygulama Ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Dr. Behçet Uz Çocuk Hastalıkları Cerrahisi Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KONAK",
+        "ENLEM":38.4278394679,
+        "BOYLAM":27.138766385,
+        "TAM_ADRES":"İSMET KAPTAN MAH. ŞEHİT NEVRES SOK. NO:4 KONAK\/İZMİR",
+        "PARENT_ADI":"Dr. Behçet Uz Çocuk Hastalıkları ve Cerrahisi Eğt. Arş. Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Dr. Faruk İlker Bergama Devlet Hastanesi Kan Merkezi ",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"BERGAMA",
+        "ENLEM":39.1186352504,
+        "BOYLAM":27.1978842719,
+        "TAM_ADRES":"İSLAMSARAY MAH. ADNAN MENDERES SOK. NO:223 BERGAMA\/İZMİR",
+        "PARENT_ADI":"Bergama Necla-Mithat Öztüre Devlet Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Dr. Suat Seren Göğüs Hastalıkları Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KONAK",
+        "ENLEM":38.4244055995,
+        "BOYLAM":27.1648430694,
+        "TAM_ADRES":"YENİŞEHİR MAH. GAZİLER SOK. NO:331 KONAK\/İZMİR",
+        "PARENT_ADI":"İzmir Dr. Suat Seren Göğüs Hast. ve Cerrahisi Eğt. Arş. Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ege Üniversitesi Tıp Fakültesi Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"BORNOVA",
+        "ENLEM":38.4559545625,
+        "BOYLAM":27.2106025424,
+        "TAM_ADRES":"KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9\/4 BORNOVA\/İZMİR",
+        "PARENT_ADI":"Ege Üniversitesi Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"İzmir Atatürk Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KARABAĞLAR",
+        "ENLEM":38.3976448527,
+        "BOYLAM":27.1038576515,
+        "TAM_ADRES":"BASIN SİTESİ MAH. POLAT SOK. NO:106\/6 KARABAĞLAR\/İZMİR",
+        "PARENT_ADI":"Atatürk Eğitim Ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"İzmir Bozyaka Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KARABAĞLAR",
+        "ENLEM":38.3979545139,
+        "BOYLAM":27.1258525693,
+        "TAM_ADRES":"BAHAR MAH. SAİM ÇIKRIKÇI SOK. NO:59 KARABAĞLAR\/İZMİR",
+        "PARENT_ADI":"İzmir Bozyaka Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"M.E.S. Torbalı Devlet Hastanesi Kan İstasyonu",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"TORBALI",
+        "ENLEM":38.1530823607,
+        "BOYLAM":27.3543374435,
+        "TAM_ADRES":"MURATBEY MAH. DOĞAN BURSALIOĞLU SOK. NO:20 TORBALI\/İZMİR",
+        "PARENT_ADI":"Torbalı Devlet Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Ödemiş Kızılay Kan İstasyonu",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"ÖDEMİŞ",
+        "ENLEM":38.2283900289,
+        "BOYLAM":27.9767287097,
+        "TAM_ADRES":"ATATÜRK MAH. ULUS SOK. NO:1 ÖDEMİŞ\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"S.B. Ege Doğumevi Ve Kadın Hastalıkları E.A.H. Kan Bankası",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KONAK",
+        "ENLEM":38.4236064493,
+        "BOYLAM":27.1673582174,
+        "TAM_ADRES":"EMİR SULTAN MAH. GAZİLER SOK. NO:470 KONAK\/İZMİR",
+        "PARENT_ADI":"İzmir Ege Doğumevi ve Kadın Hst. Eğt. Ve Arş. Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"S.B. Tepecik Eğitim ve Araştırma Hastanesi Kan Bankası",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KONAK",
+        "ENLEM":38.4229324454,
+        "BOYLAM":27.1662378783,
+        "TAM_ADRES":"GÜNEY MAH. 1140\/1 SOK. NO:1 KONAK\/İZMİR",
+        "PARENT_ADI":"İzmir Tepecik Eğitim ve Araştırma Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Selçuk Devlet Hastanesi Kan Laboratuvarı",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"SELÇUK",
+        "ENLEM":37.9477204517,
+        "BOYLAM":27.3676652934,
+        "TAM_ADRES":"ATATÜRK MAH. SABRİ YAYLA SOK. NO:1\/1 SELÇUK\/İZMİR",
+        "PARENT_ADI":"Selçuk Devlet Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    },
+    {
+        "ADI":"Talatpaşa Tıbbi Biyokimya ve Mikrobiyoloji Laboratuvarı Karşıyaka Şubesi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KARŞIYAKA",
+        "ENLEM":38.4787621265,
+        "BOYLAM":27.0821457772,
+        "TAM_ADRES":"YALI MAH. 6523 SOK. NO:32B KARŞIYAKA\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Türk Kızılay İzmir Şubesi ",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"KONAK",
+        "ENLEM":38.4289025728,
+        "BOYLAM":27.135309518,
+        "TAM_ADRES":"KÜLTÜR MAH. ŞEHİT NEVRES SOK. NO:1 KONAK\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Türk Kızılayı Ege bölge  Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"BAYRAKLI",
+        "ENLEM":38.4613450048,
+        "BOYLAM":27.1871791745,
+        "TAM_ADRES":"MANAVKUYU MAH. ALİJA İZETBEGOVİC SOK. NO:41 BAYRAKLI\/İZMİR",
+        "PARENT_ADI":"Bağımsız Kurum",
+        "HIYERARSI_TIPI":"Parent"
+    },
+    {
+        "ADI":"Urla Devlet Hastanesi Kan Merkezi",
+        "TIPI":"Kan Merkezi",
+        "ILCE":"URLA",
+        "ENLEM":38.3300992294,
+        "BOYLAM":26.7459932228,
+        "TAM_ADRES":"TORASAN MAH. ÖZBEKYOLU SOK. NO:13 URLA\/İZMİR",
+        "PARENT_ADI":"Urla Devlet Hastanesi",
+        "HIYERARSI_TIPI":"Child"
+    }
+]
