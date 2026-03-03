@@ -1,7 +1,8 @@
 from sqlalchemy import Column, String, Integer, Float, Boolean, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, backref
 from geoalchemy2 import Geometry
+
 import uuid
 import enum
 from datetime import datetime
@@ -119,11 +120,31 @@ class HealthStatus(Base):
 # --- 6. HASTANE VE KURUMLAR ---
 class Institution(Base):
     __tablename__ = "institutions"
+    
+    # 1. Kimlik ve Temel Bilgiler
     kurum_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    kurum_adi = Column(String, nullable=False)
+    kurum_adi = Column(String, nullable=False, index=True)
+    tipi = Column(String, nullable=False) # 'Hastane' veya 'Kan Merkezi'
+    
+    # 2. Akıllı Hiyerarşi (Parent-Child)
+    # Bu sütun, eğer kurum bir alt birimse (Child), ana kurumun ID'sini tutar.
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
+    hiyerarsi_tipi = Column(String, nullable=False) # 'Parent', 'Child' veya 'Bağımsız Kurum'
+    
+    # 3. Konum ve Adres Verisi
+    # PostGIS destekli koordinat sistemi
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
-    yetkili_kisi = Column(String, nullable=False)
-    iletisim = Column(String, nullable=False)
+    ilce = Column(String, nullable=False, index=True) # Filtreleme için ilçe kolonu
+    iletisim = Column(String, nullable=False) # Telefon veya Tam Adres
+    yetkili_kisi = Column(String, nullable=False, default="Başhekimlik/Müdürlük")
+
+    # 4. İlişkiler (SQLAlchemy Magic)
+    # Bir ana kurumun altındaki tüm birimleri 'ana_kurum.sub_units' ile çekebilirsin.
+    sub_units = relationship(
+        "Institution", 
+        backref=backref('parent', remote_side=[kurum_id]),
+        cascade="all, delete-orphan"
+    )
 
 # --- 7. KAN TALEPLERİ ---
 class BloodRequest(Base):

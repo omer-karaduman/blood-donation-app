@@ -70,34 +70,24 @@ def get_donor_list(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
     return db.query(models.DonorProfile).options(joinedload(models.DonorProfile.user)).offset(skip).limit(limit).all()
 
 @app.get("/institutions/", response_model=list[schemas.InstitutionResponse])
-def get_institutions(ilce: str = None, db: Session = Depends(get_db)):
-    query = db.query(models.Institution)
-    
-    # Filtreleme: "Tümü" seçili değilse ilçe bazlı süz
+def get_institutions(ilce: str = None, tipi: str = None, db: Session = Depends(get_db)):
+    # 1. Sorguyu başlat ve 'sub_units' (alt birimler) ilişkisini önceden yükle (Eager Loading)
+    query = db.query(models.Institution).options(joinedload(models.Institution.sub_units))
+
+    # 2. Filtreleri Uygula
     if ilce and ilce != "Tümü":
-        query = query.filter(models.Institution.iletisim.ilike(f"%{ilce}%"))
+        def upper_tr(text):
+            return text.replace("i", "İ").replace("ı", "I").upper()
+        # Veritabanındaki 'ilce' kolonu üzerinden filtrele
+        query = query.filter(models.Institution.ilce.ilike(f"%{upper_tr(ilce)}%"))
     
-    raw_results = query.all()
-    cleaned_data = {}
+    if tipi and tipi != "Tümü":
+        # 'Hastane' veya 'Kan Merkezi' filtrelemesi
+        query = query.filter(models.Institution.tipi == tipi)
 
-    for r in raw_results:
-        # 1. Kök İsim (Örn: Ege Üniversitesi)
-        words = r.kurum_adi.split()
-        root_name = " ".join(words[:2]).strip() if len(words) >= 2 else r.kurum_adi
-        
-        # 2. İlçe Ayıklama (Daha sağlam: '/' yoksa tüm adresi alıp temizle)
-        # Ödemiş ve Bornova'yı birbirinden ayırmak için .upper() kullanıyoruz
-        if '/' in r.iletisim:
-            current_district = r.iletisim.split('/')[0].strip().upper()
-        else:
-            # Eğer format farklıysa iletişim bilgisinden ilçe listemizdeki kelimeleri ara
-            current_district = "IZMIR" 
-        
-        # 3. BENZERSİZ ANAHTAR: "Kök İsim + İlçe"
-        # Bu sayede 'EGE ÜNİVERSİTESİ_BORNOVA' ve 'EGE ÜNİVERSİTESİ_ÖDEMİŞ' ayrı iki kayıt olur.
-        unique_key = f"{root_name.upper()}_{current_district}"
-        
-        if unique_key not in cleaned_data:
-            cleaned_data[unique_key] = r
-
-    return list(cleaned_data.values())
+    # 3. KRİTİK NOKTA: Sadece 'Root' (Kök) kurumları döndür.
+    # parent_id'si None olanlar ya bir ana hastanedir ya da bağımsız bir merkezdir.
+    # Alt birimler (Child), Pydantic'in sub_units alanı sayesinde bunların içinde dönecektir.
+    results = query.filter(models.Institution.parent_id == None).all()
+    
+    return results

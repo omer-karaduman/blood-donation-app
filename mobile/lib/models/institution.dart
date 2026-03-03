@@ -1,18 +1,31 @@
 class Institution {
-  final String id; // int yerine String yapmalısın!
+  final String id;
   final String ad;
-  final String yetkili;
-  final String iletisim;
+  final String ilce;
+  final String tamAdres;
+  final String parentAdi;
+  final String hiyerarsiTipi;
+  final String tipi; // YENİ ALAN
 
-  Institution({required this.id, required this.ad, required this.yetkili, required this.iletisim});
+  Institution({
+    required this.id, 
+    required this.ad, 
+    required this.ilce, 
+    required this.tamAdres, 
+    required this.parentAdi, 
+    required this.hiyerarsiTipi,
+    required this.tipi,
+  });
 
   factory Institution.fromJson(Map<String, dynamic> json) {
     return Institution(
-      // Backend'den 'kurum_id' anahtarıyla gelen UUID'yi String'e çeviriyoruz
-      id: json['kurum_id']?.toString() ?? '', 
-      ad: json['kurum_adi'] ?? 'İsimsiz Kurum',
-      yetkili: json['yetkili_kisi'] ?? 'Yetkili Belirtilmedi',
-      iletisim: json['iletisim'] ?? 'Adres Bilgisi Yok',
+      id: json['kurum_id'].toString(),
+      ad: json['kurum_adi'] ?? "Bilinmiyor",
+      ilce: json['ilce'] ?? "",
+      tamAdres: json['tam_adres'] ?? "",
+      parentAdi: json['parent_adi'] ?? "Bağımsız Kurum",
+      hiyerarsiTipi: json['hiyerarsi_tipi'] ?? "Parent",
+      tipi: json['tipi'] ?? "Hastane", // JSON'dan gelen tipi alanı
     );
   }
 }

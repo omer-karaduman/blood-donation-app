@@ -1,0 +1,952 @@
+[
+    {
+        "ADI": "Aliağa Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ALİAĞA",
+        "ENLEM": 38.7870453531,
+        "BOYLAM": 26.9749834035,
+        "TAM_ADRES": "YENİ MAH. RUMELİ SOK. NO:7 ALİAĞA/İZMİR",
+        "ID": 1,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Atatürk Eğitim Ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARABAĞLAR",
+        "ENLEM": 38.3977502471,
+        "BOYLAM": 27.1038030369,
+        "TAM_ADRES": "BASIN SİTESİ MAH. POLAT SOK. NO:106 KARABAĞLAR/İZMİR",
+        "ID": 2,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Atatürk Eğitim ve Araştırma Hastanesi Hatay Ek Hizmet Binası",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4027304052,
+        "BOYLAM": 27.112206217,
+        "TAM_ADRES": "MURAT REİS MAH. İNÖNÜ SOK. NO:256/1 KONAK/İZMİR",
+        "ID": 3,
+        "PARENT_ID": 2
+    },
+    {
+        "ADI": "Bakırçay Üniversitesi Çiğli Eğitim Ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÇİĞLİ",
+        "ENLEM": 38.4995921247,
+        "BOYLAM": 27.0493291309,
+        "TAM_ADRES": "YENİ MAHALLE MAH. MURAT KARAYALÇIN SOK. NO:18 ÇİĞLİ/İZMİR",
+        "ID": 4,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Başkent Üniversitesi Zübeyde Hanım Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARŞIYAKA",
+        "ENLEM": 38.4718474499,
+        "BOYLAM": 27.0862344808,
+        "TAM_ADRES": "YALI MAH. 6471/5 SOK. NO:7 KARŞIYAKA/İZMİR",
+        "ID": 5,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Başkent Üniversitesi Zübeyde Hanım Uygulama ve Araştırma Merkezi",
+        "TIPI": "Hastane",
+        "ILCE": "KARŞIYAKA",
+        "ENLEM": 38.4639228867,
+        "BOYLAM": 27.0933139365,
+        "TAM_ADRES": "BOSTANLI MAH. CAHER DUDAYEV SOK. NO:175 KARŞIYAKA/İZMİR",
+        "ID": 6,
+        "PARENT_ID": 5
+    },
+    {
+        "ADI": "Bayındır Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BAYINDIR",
+        "ENLEM": 38.2215348833,
+        "BOYLAM": 27.6496005431,
+        "TAM_ADRES": "MİTHATPAŞA MAH. HASTANE SOK. NO:35 BAYINDIR/İZMİR",
+        "ID": 7,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Bergama Necla-Mithat Öztüre Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BERGAMA",
+        "ENLEM": 39.11836424,
+        "BOYLAM": 27.1979938859,
+        "TAM_ADRES": "İSLAMSARAY MAH. ADNAN MENDERES SOK. NO:223 BERGAMA/İZMİR",
+        "ID": 8,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Bornova Türkan Özilhan Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4590021948,
+        "BOYLAM": 27.2504882628,
+        "TAM_ADRES": "EVKA 3 MAH. ANKARA SOK. NO:305A BORNOVA/İZMİR",
+        "ID": 9,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Buca Kadın Doğum ve Çocuk Hastalıkları Ek Hizmet Binası",
+        "TIPI": "Hastane",
+        "ILCE": "BUCA",
+        "ENLEM": 38.3761854027,
+        "BOYLAM": 27.1808131327,
+        "TAM_ADRES": "ATATÜRK MAH. HOCA AHMET YESEVİ SOK. NO:27 BUCA/İZMİR",
+        "ID": 10,
+        "PARENT_ID": 11
+    },
+    {
+        "ADI": "Buca Seyfi Demirsoy Eğitim ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BUCA",
+        "ENLEM": 38.3845217201,
+        "BOYLAM": 27.1633148748,
+        "TAM_ADRES": "KOZAĞAÇ MAH. ÖZMEN SOK. NO:145-147 BUCA/İZMİR",
+        "ID": 11,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Çeşme Alper Çizgenakat Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÇEŞME",
+        "ENLEM": 38.316858929,
+        "BOYLAM": 26.3256474465,
+        "TAM_ADRES": "FAHRETTİNPAŞA MAH. 2222/1 SOK. NO:2 ÇEŞME/İZMİR",
+        "ID": 12,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Dikili Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "DİKİLİ",
+        "ENLEM": 39.0649107301,
+        "BOYLAM": 26.8924322917,
+        "TAM_ADRES": "SALİMBEY MAH. REYHAN SOK. NO:14A DİKİLİ/İZMİR",
+        "ID": 13,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Dokuz Eylül Üniversitesi Uygulama Ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BALÇOVA",
+        "ENLEM": 38.3941773326,
+        "BOYLAM": 27.0331047436,
+        "TAM_ADRES": "İNCİRALTI MAH. MİTHATPAŞA SOK. NO:1460/19 BALÇOVA/İZMİR",
+        "ID": 14,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Dr. Behçet Uz Çocuk Hastalıkları ve Cerrahisi Eğt. Arş. Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4276826594,
+        "BOYLAM": 27.1386632216,
+        "TAM_ADRES": "İSMET KAPTAN MAH. SEZER DOĞAN SOK. NO:11 KONAK/İZMİR",
+        "ID": 15,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Dr. E. Hayri Üstündağ Kadın Hastalıkları ve Doğum Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4148353222,
+        "BOYLAM": 27.1292705679,
+        "TAM_ADRES": "SÜMER MAH. 451 SOK. NO:2 KONAK/İZMİR",
+        "ID": 16,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Ege Üniversite Hastanesi Çocuk Acil Servisi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4543132906,
+        "BOYLAM": 27.2137402879,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9/7 BORNOVA/İZMİR",
+        "ID": 17,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Ege üniversitesi Acil Servis",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4568451503,
+        "BOYLAM": 27.2094022837,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:854C BORNOVA/İZMİR",
+        "ID": 18,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "Ege Üniversitesi Göğüs Hastalıkları Ana Bilim Dalı",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4555294558,
+        "BOYLAM": 27.2074953781,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9/62 BORNOVA/İZMİR",
+        "ID": 19,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "Ege Üniversitesi Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4560515385,
+        "BOYLAM": 27.2098066984,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9/53 BORNOVA/İZMİR",
+        "ID": 20,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Ege Üniversitesi Hastanesi Sağlık Uygulama Ve Araştırma Merkezi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4561154886,
+        "BOYLAM": 27.2108995126,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9 BORNOVA/İZMİR",
+        "ID": 21,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "Ege Üniversitesi Nükleer Tıp Merkezi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.454326264,
+        "BOYLAM": 27.2085418054,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9/67 BORNOVA/İZMİR",
+        "ID": 22,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "Ege Üniversitesi Tıp Fakültesi Çocuk Kalp ve Damar Cerrahisi Bilim Dalı",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.456396076,
+        "BOYLAM": 27.2086129496,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9 BORNOVA/İZMİR",
+        "ID": 23,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "Eşrefpaşa Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4235574445,
+        "BOYLAM": 27.1606690586,
+        "TAM_ADRES": "YENİŞEHİR MAH. GAZİLER SOK. NO:315 KONAK/İZMİR",
+        "ID": 24,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Foça Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "FOÇA",
+        "ENLEM": 38.6581721362,
+        "BOYLAM": 26.7610389769,
+        "TAM_ADRES": "ATATÜRK MAH. ÇAM SOK. NO:7 FOÇA/İZMİR",
+        "ID": 25,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Gaziemir Nevvar Salih İşgören Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "GAZİEMİR",
+        "ENLEM": 38.3110269814,
+        "BOYLAM": 27.1331415216,
+        "TAM_ADRES": "SEVGİ MAH. NEVVAR SALİH İŞGÖREN SOK. NO:16 GAZİEMİR/İZMİR",
+        "ID": 26,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Gureba-i Müslimin Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.415043307,
+        "BOYLAM": 27.1289362008,
+        "TAM_ADRES": "SÜMER MAH. 440 SOK. NO:2 KONAK/İZMİR",
+        "ID": 27,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Aliağa Ceza İnfaz Kurumları Kampüs Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ALİAĞA",
+        "ENLEM": 38.8810959546,
+        "BOYLAM": 27.0966927007,
+        "TAM_ADRES": "BAHÇEDERE MAH. KAPUKAYA SOK. NO:63 ALİAĞA/İZMİR",
+        "ID": 28,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Alsancak Nevvar Salih İşgören Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4340288906,
+        "BOYLAM": 27.1433371555,
+        "TAM_ADRES": "KÜLTÜR MAH. ALİ ÇETİNKAYA SOK. NO:26 KONAK/İZMİR",
+        "ID": 29,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Bozyaka Eğitim ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARABAĞLAR",
+        "ENLEM": 38.398132418,
+        "BOYLAM": 27.1252743297,
+        "TAM_ADRES": "BAHAR MAH. SAİM ÇIKRIKÇI SOK. NO:59 KARABAĞLAR/İZMİR",
+        "ID": 30,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Dr. Suat Seren Göğüs Hast. ve Cerrahisi Eğt. Arş. Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4246173899,
+        "BOYLAM": 27.1648447253,
+        "TAM_ADRES": "YENİŞEHİR MAH. GAZİLER SOK. NO:331 KONAK/İZMİR",
+        "ID": 31,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Ege Doğumevi ve Kadın Hst. Eğt. Ve Arş. Hastanesi( Tepecik Kadın Doğum hastanesi)",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4236788489,
+        "BOYLAM": 27.1675933083,
+        "TAM_ADRES": "EMİR SULTAN MAH. GAZİLER SOK. NO:470 KONAK/İZMİR",
+        "ID": 32,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Ekonomi Üniversitesi (İeü) Özel Medicalpoint Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARŞIYAKA",
+        "ENLEM": 38.4737977546,
+        "BOYLAM": 27.1116593316,
+        "TAM_ADRES": "İMBATLI MAH. 1825 SOK. NO:12 KARŞIYAKA/İZMİR",
+        "ID": 33,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Katip Çelebi Üniversitesi Diş Hekimliği Fakültesi Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÇİĞLİ",
+        "ENLEM": 38.4901654088,
+        "BOYLAM": 27.0777745605,
+        "TAM_ADRES": "AYDINLIKEVLER MAH. 6780 SOK. NO:48 ÇİĞLİ/İZMİR",
+        "ID": 34,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Kınık Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KINIK",
+        "ENLEM": 39.0896462638,
+        "BOYLAM": 27.3629649697,
+        "TAM_ADRES": "POYRACIK MAH. SOMA SOK. NO:24 KINIK/İZMİR",
+        "ID": 35,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Özel Can Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÇİĞLİ",
+        "ENLEM": 38.4830439271,
+        "BOYLAM": 27.0581710196,
+        "TAM_ADRES": "ATAŞEHİR MAH. 8019/16 SOK. NO:18 ÇİĞLİ/İZMİR",
+        "ID": 36,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Şehir Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BAYRAKLI",
+        "ENLEM": 38.4843673048,
+        "BOYLAM": 27.1776541937,
+        "TAM_ADRES": "R.ŞEVKET İNCE MAH. 2148/11 SOK. NO:1 BAYRAKLI/İZMİR",
+        "ID": 37,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Tepecik Eğitim ve Araştırma Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4230120006,
+        "BOYLAM": 27.1661562671,
+        "TAM_ADRES": "GÜNEY MAH. GAZİLER SOK. NO:468 KONAK/İZMİR",
+        "ID": 38,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "İzmir Tınaztepe Üniversitesi Özel Galen Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BAYRAKLI",
+        "ENLEM": 38.4637923775,
+        "BOYLAM": 27.194492024,
+        "TAM_ADRES": "MANAVKUYU MAH. 250 SOK. NO:23 BAYRAKLI/İZMİR",
+        "ID": 39,
+        "PARENT_ID": 69
+    },
+    {
+        "ADI": "Karaburun İlçe Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARABURUN",
+        "ENLEM": 38.635181645,
+        "BOYLAM": 26.5223377164,
+        "TAM_ADRES": "İSKELE MAH. KEPEZ SOK. NO:26 KARABURUN/İZMİR",
+        "ID": 40,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Kemalpaşa Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KEMALPAŞA",
+        "ENLEM": 38.4362530629,
+        "BOYLAM": 27.4098155203,
+        "TAM_ADRES": "SEKİZ EYLÜL MAH. KIROVASI SOK. NO:81/1A KEMALPAŞA/İZMİR",
+        "ID": 41,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Kiraz Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KİRAZ",
+        "ENLEM": 38.2303856028,
+        "BOYLAM": 28.218448176,
+        "TAM_ADRES": "CUMHURİYET MAH. KUBİLAY SOK. NO:9 KİRAZ/İZMİR",
+        "ID": 42,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Menderes Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "MENDERES",
+        "ENLEM": 38.238470183,
+        "BOYLAM": 27.1361575701,
+        "TAM_ADRES": "CÜNEYTBEY MAH. ÇEVRE YOLU SOK. NO:147 MENDERES/İZMİR",
+        "ID": 43,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Menemen Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "MENEMEN",
+        "ENLEM": 38.6069980673,
+        "BOYLAM": 27.0880098722,
+        "TAM_ADRES": "UĞUR MUMCU MAH. 1249 SOK. NO:13/1 MENEMEN/İZMİR",
+        "ID": 44,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Ödemiş Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÖDEMİŞ",
+        "ENLEM": 38.2305231332,
+        "BOYLAM": 27.9880694048,
+        "TAM_ADRES": "ZAFER MAH. ORTAÇ SOK. NO:10 ÖDEMİŞ/İZMİR",
+        "ID": 45,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Acıbadem İzmir Kent Hastanesi ",
+        "TIPI": "Hastane",
+        "ILCE": "ÇİĞLİ",
+        "ENLEM": 38.4894778572,
+        "BOYLAM": 27.0515848199,
+        "TAM_ADRES": "ATAŞEHİR MAH. 8229/1 SOK. NO:56 ÇİĞLİ/İZMİR",
+        "ID": 46,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Akut Kalp Damar Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "GAZİEMİR",
+        "ENLEM": 38.3320689462,
+        "BOYLAM": 27.1374768071,
+        "TAM_ADRES": "DOKUZ EYLÜL MAH. 343/1 SOK. NO:6 GAZİEMİR/İZMİR",
+        "ID": 47,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Ata Sağlık Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.443073839,
+        "BOYLAM": 27.1827300407,
+        "TAM_ADRES": "KAZIMDİRİK MAH. 297 SOK. NO:1 BORNOVA/İZMİR",
+        "ID": 48,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Batı Anadolu Hastanesi Central Hospital",
+        "TIPI": "Hastane",
+        "ILCE": "BAYRAKLI",
+        "ENLEM": 38.4608616498,
+        "BOYLAM": 27.1668236517,
+        "TAM_ADRES": "BAYRAKLI MAH. ZEKİ YAVAŞ SOK. NO:2/2 BAYRAKLI/İZMİR",
+        "ID": 49,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Bazekol Çiğli Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "ÇİĞLİ",
+        "ENLEM": 38.485420813,
+        "BOYLAM": 27.0595989325,
+        "TAM_ADRES": "ATAŞEHİR MAH. 8019/16 SOK. NO:4 ÇİĞLİ/İZMİR",
+        "ID": 50,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Çınarlı Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4405967457,
+        "BOYLAM": 27.1726643357,
+        "TAM_ADRES": "ÇINARLI MAH. ANADOLU SOK. NO:14 KONAK/İZMİR",
+        "ID": 51,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Dünyagöz Hastanesi İzmir",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4333589539,
+        "BOYLAM": 27.148732679,
+        "TAM_ADRES": "MİMAR SİNAN MAH. ALİ ÇETİNKAYA SOK. NO:79 KONAK/İZMİR",
+        "ID": 52,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Ege Yaşam Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARABAĞLAR",
+        "ENLEM": 38.3830230431,
+        "BOYLAM": 27.112540569,
+        "TAM_ADRES": "ALİ FUAT CEBESOY MAH. 9135/4 SOK. NO:4 KARABAĞLAR/İZMİR",
+        "ID": 53,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Egepol Cerrahi Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4002130818,
+        "BOYLAM": 27.1280587117,
+        "TAM_ADRES": "GÜNEŞLİ MAH. HALİDE EDİP ADIVAR SOK. NO:3A KONAK/İZMİR",
+        "ID": 54,
+        "PARENT_ID": 55
+    },
+    {
+        "ADI": "Özel Egepol Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4018243202,
+        "BOYLAM": 27.1268674514,
+        "TAM_ADRES": "GÜNEŞLİ MAH. 527 SOK. NO:2 KONAK/İZMİR",
+        "ID": 55,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Egepol Internatıonal Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4005546118,
+        "BOYLAM": 27.1275025548,
+        "TAM_ADRES": "GÜNEŞLİ MAH. HALİDE EDİP ADIVAR SOK. NO:57 KONAK/İZMİR",
+        "ID": 56,
+        "PARENT_ID": 55
+    },
+    {
+        "ADI": "Özel Emot El ve Mikrocerrahi Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4259535782,
+        "BOYLAM": 27.1510414461,
+        "TAM_ADRES": "KAHRAMANLAR MAH. 1418 SOK. NO:16 KONAK/İZMİR",
+        "ID": 57,
+        "PARENT_ID": 58
+    },
+    {
+        "ADI": "Özel Emot Plus Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4257118957,
+        "BOYLAM": 27.150869327,
+        "TAM_ADRES": "KAHRAMANLAR MAH. 1418 SOK. NO:18-28 KONAK/İZMİR",
+        "ID": 58,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Gazi Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4295190729,
+        "BOYLAM": 27.1519673738,
+        "TAM_ADRES": "KAHRAMANLAR MAH. NEVZAT GÜZELIRMAK SOK. NO:29 KONAK/İZMİR",
+        "ID": 59,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Gözde Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4246519509,
+        "BOYLAM": 27.1681152424,
+        "TAM_ADRES": "YENİŞEHİR MAH. GAZİLER SOK. NO:353/4 KONAK/İZMİR",
+        "ID": 60,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Karataş Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4115286458,
+        "BOYLAM": 27.1229606728,
+        "TAM_ADRES": "BARBAROS MAH. AV. SELİM HAKMEN SOK. NO:26 KONAK/İZMİR",
+        "ID": 61,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Karşıyaka Göz Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KARŞIYAKA",
+        "ENLEM": 38.4723109899,
+        "BOYLAM": 27.0845245809,
+        "TAM_ADRES": "YALI MAH. CAHER DUDAYEV SOK. NO:71 KARŞIYAKA/İZMİR",
+        "ID": 62,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Kaşkaloğlu Göz Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4320782647,
+        "BOYLAM": 27.1473254282,
+        "TAM_ADRES": "MİMAR SİNAN MAH. 1400 SOK. NO:10 KONAK/İZMİR",
+        "ID": 63,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Medıcana Internatıonal İzmir Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.429632711,
+        "BOYLAM": 27.1571755887,
+        "TAM_ADRES": "YENİŞEHİR MAH. İŞÇİLER SOK. NO:126 KONAK/İZMİR",
+        "ID": 64,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Medifama Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "TORBALI",
+        "ENLEM": 38.2410522491,
+        "BOYLAM": 27.2756694666,
+        "TAM_ADRES": "AYRANCILAR MAH. İZMİR AYDIN SOK. NO:124 TORBALI/İZMİR",
+        "ID": 65,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Sada Hastanesi (Ekol Sağlık Grubu)",
+        "TIPI": "Hastane",
+        "ILCE": "MENEMEN",
+        "ENLEM": 38.5917245337,
+        "BOYLAM": 27.0743757506,
+        "TAM_ADRES": "ESATPAŞA MAH. ÇANAKKALE ASFALTI SOK. NO:171 MENEMEN/İZMİR",
+        "ID": 66,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Sağlık Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.432523299,
+        "BOYLAM": 27.1491856038,
+        "TAM_ADRES": "MİMAR SİNAN MAH. IŞILAY SAYGIN SOK. NO:25 KONAK/İZMİR",
+        "ID": 67,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Su Hospital Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "KONAK",
+        "ENLEM": 38.425130405,
+        "BOYLAM": 27.1495984808,
+        "TAM_ADRES": "KAHRAMANLAR MAH. 1397 SOK. NO:1 KONAK/İZMİR",
+        "ID": 68,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Tınaztepe Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BUCA",
+        "ENLEM": 38.3702275161,
+        "BOYLAM": 27.1936203803,
+        "TAM_ADRES": "KURUÇEŞME MAH. AHMET PİRİŞTİNA SOK. NO:51 BUCA/İZMİR",
+        "ID": 69,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Özel Tınaztepe Torbalı Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "TORBALI",
+        "ENLEM": 38.1428576957,
+        "BOYLAM": 27.3670386202,
+        "TAM_ADRES": "TEPEKÖY MAH. AYDIN SOK. NO:336 - 336A TORBALI/İZMİR",
+        "ID": 70,
+        "PARENT_ID": 69
+    },
+    {
+        "ADI": "Sağlık Bilimleri Üniversitesi Tepecik Eğitim Araştırma Hastanesi Bornova Ek Binası",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4545959724,
+        "BOYLAM": 27.2050481167,
+        "TAM_ADRES": "KAZIMDİRİK MAH. SANAYİ SOK. NO:7-9 BORNOVA/İZMİR",
+        "ID": 71,
+        "PARENT_ID": 38
+    },
+    {
+        "ADI": "Seferihisar Necat Hepkon Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "SEFERİHİSAR",
+        "ENLEM": 38.1978904782,
+        "BOYLAM": 26.8455439511,
+        "TAM_ADRES": "TURABİYE MAH. BEYLER SOK. NO:3 SEFERİHİSAR/İZMİR",
+        "ID": 72,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Selçuk Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "SELÇUK",
+        "ENLEM": 37.9478267156,
+        "BOYLAM": 27.3672574517,
+        "TAM_ADRES": "ATATÜRK MAH. SABRİ YAYLA SOK. NO:1 SELÇUK/İZMİR",
+        "ID": 73,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Tire Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "TİRE",
+        "ENLEM": 38.1006110001,
+        "BOYLAM": 27.7217581845,
+        "TAM_ADRES": "ATATÜRK MAH. İNÖNÜ SOK. NO:1 TİRE/İZMİR",
+        "ID": 74,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Torbalı Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "TORBALI",
+        "ENLEM": 38.1756299917,
+        "BOYLAM": 27.3580650189,
+        "TAM_ADRES": "YEDİ EYLÜL MAH. EKOTEN SOK. NO:2 TORBALI/İZMİR",
+        "ID": 75,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Tülay Aktaş Onkoloji ve Kemik İliği Transplantasyon Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4536064076,
+        "BOYLAM": 27.2083992086,
+        "TAM_ADRES": "KAZIMDİRİK MAH. İZMİR AYDIN OTOYOLU SOK. NO:9/70 BORNOVA/İZMİR",
+        "ID": 76,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Urla Devlet Hastanesi",
+        "TIPI": "Hastane",
+        "ILCE": "URLA",
+        "ENLEM": 38.3301887462,
+        "BOYLAM": 26.7459515425,
+        "TAM_ADRES": "TORASAN MAH. ÖZBEKYOLU SOK. NO:15 URLA/İZMİR",
+        "ID": 77,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Aliağa Devlet Hastanesi Kan İstasyonu",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "ALİAĞA",
+        "ENLEM": 38.7869076557,
+        "BOYLAM": 26.9753011863,
+        "TAM_ADRES": "YENİ MAH. 527 SOK. NO:1 ALİAĞA/İZMİR",
+        "ID": 78,
+        "PARENT_ID": 1
+    },
+    {
+        "ADI": "Buca Seyfi Demirsoy Devlet Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "BUCA",
+        "ENLEM": 38.3846564541,
+        "BOYLAM": 27.1633363845,
+        "TAM_ADRES": "KOZAĞAÇ MAH. ÖZMEN SOK. NO:147 BUCA/İZMİR",
+        "ID": 79,
+        "PARENT_ID": 11
+    },
+    {
+        "ADI": "Dokuz Eylül Üniversitesi Tıp Fakültesi Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "BALÇOVA",
+        "ENLEM": 38.3952430745,
+        "BOYLAM": 27.0327507794,
+        "TAM_ADRES": "İNCİRALTI MAH. MİTHATPAŞA SOK. NO:56 BALÇOVA/İZMİR",
+        "ID": 80,
+        "PARENT_ID": 14
+    },
+    {
+        "ADI": "Dr. Behçet Uz Çocuk Hastalıkları Cerrahisi Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4278394679,
+        "BOYLAM": 27.138766385,
+        "TAM_ADRES": "İSMET KAPTAN MAH. ŞEHİT NEVRES SOK. NO:4 KONAK/İZMİR",
+        "ID": 81,
+        "PARENT_ID": 15
+    },
+    {
+        "ADI": "Dr. Faruk İlker Bergama Devlet Hastanesi Kan Merkezi ",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "BERGAMA",
+        "ENLEM": 39.1186352504,
+        "BOYLAM": 27.1978842719,
+        "TAM_ADRES": "İSLAMSARAY MAH. ADNAN MENDERES SOK. NO:223 BERGAMA/İZMİR",
+        "ID": 82,
+        "PARENT_ID": 8
+    },
+    {
+        "ADI": "Dr. Suat Seren Göğüs Hastalıkları Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4244055995,
+        "BOYLAM": 27.1648430694,
+        "TAM_ADRES": "YENİŞEHİR MAH. GAZİLER SOK. NO:331 KONAK/İZMİR",
+        "ID": 83,
+        "PARENT_ID": 31
+    },
+    {
+        "ADI": "Ege Üniversitesi Tıp Fakültesi Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "BORNOVA",
+        "ENLEM": 38.4559545625,
+        "BOYLAM": 27.2106025424,
+        "TAM_ADRES": "KAZIMDİRİK MAH. ÜNİVERSİTE SOK. NO:9/4 BORNOVA/İZMİR",
+        "ID": 84,
+        "PARENT_ID": 20
+    },
+    {
+        "ADI": "İzmir Atatürk Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KARABAĞLAR",
+        "ENLEM": 38.3976448527,
+        "BOYLAM": 27.1038576515,
+        "TAM_ADRES": "BASIN SİTESİ MAH. POLAT SOK. NO:106/6 KARABAĞLAR/İZMİR",
+        "ID": 85,
+        "PARENT_ID": 2
+    },
+    {
+        "ADI": "İzmir Bozyaka Eğitim ve Araştırma Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KARABAĞLAR",
+        "ENLEM": 38.3979545139,
+        "BOYLAM": 27.1258525693,
+        "TAM_ADRES": "BAHAR MAH. SAİM ÇIKRIKÇI SOK. NO:59 KARABAĞLAR/İZMİR",
+        "ID": 86,
+        "PARENT_ID": 30
+    },
+    {
+        "ADI": "M.E.S. Torbalı Devlet Hastanesi Kan İstasyonu",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "TORBALI",
+        "ENLEM": 38.1530823607,
+        "BOYLAM": 27.3543374435,
+        "TAM_ADRES": "MURATBEY MAH. DOĞAN BURSALIOĞLU SOK. NO:20 TORBALI/İZMİR",
+        "ID": 87,
+        "PARENT_ID": 75
+    },
+    {
+        "ADI": "Ödemiş Kızılay Kan İstasyonu",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "ÖDEMİŞ",
+        "ENLEM": 38.2283900289,
+        "BOYLAM": 27.9767287097,
+        "TAM_ADRES": "ATATÜRK MAH. ULUS SOK. NO:1 ÖDEMİŞ/İZMİR",
+        "ID": 88,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "S.B. Ege Doğumevi Ve Kadın Hastalıkları E.A.H. Kan Bankası",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4236064493,
+        "BOYLAM": 27.1673582174,
+        "TAM_ADRES": "EMİR SULTAN MAH. GAZİLER SOK. NO:470 KONAK/İZMİR",
+        "ID": 89,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "S.B. Tepecik Eğitim ve Araştırma Hastanesi Kan Bankası",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4229324454,
+        "BOYLAM": 27.1662378783,
+        "TAM_ADRES": "GÜNEY MAH. 1140/1 SOK. NO:1 KONAK/İZMİR",
+        "ID": 90,
+        "PARENT_ID": 38
+    },
+    {
+        "ADI": "Selçuk Devlet Hastanesi Kan Laboratuvarı",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "SELÇUK",
+        "ENLEM": 37.9477204517,
+        "BOYLAM": 27.3676652934,
+        "TAM_ADRES": "ATATÜRK MAH. SABRİ YAYLA SOK. NO:1/1 SELÇUK/İZMİR",
+        "ID": 91,
+        "PARENT_ID": 73
+    },
+    {
+        "ADI": "Talatpaşa Tıbbi Biyokimya ve Mikrobiyoloji Laboratuvarı Karşıyaka Şubesi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KARŞIYAKA",
+        "ENLEM": 38.4787621265,
+        "BOYLAM": 27.0821457772,
+        "TAM_ADRES": "YALI MAH. 6523 SOK. NO:32B KARŞIYAKA/İZMİR",
+        "ID": 92,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Türk Kızılay İzmir Şubesi ",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "KONAK",
+        "ENLEM": 38.4289025728,
+        "BOYLAM": 27.135309518,
+        "TAM_ADRES": "KÜLTÜR MAH. ŞEHİT NEVRES SOK. NO:1 KONAK/İZMİR",
+        "ID": 93,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Türk Kızılayı Ege bölge  Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "BAYRAKLI",
+        "ENLEM": 38.4613450048,
+        "BOYLAM": 27.1871791745,
+        "TAM_ADRES": "MANAVKUYU MAH. ALİJA İZETBEGOVİC SOK. NO:41 BAYRAKLI/İZMİR",
+        "ID": 94,
+        "PARENT_ID": null
+    },
+    {
+        "ADI": "Urla Devlet Hastanesi Kan Merkezi",
+        "TIPI": "Kan Merkezi",
+        "ILCE": "URLA",
+        "ENLEM": 38.3300992294,
+        "BOYLAM": 26.7459932228,
+        "TAM_ADRES": "TORASAN MAH. ÖZBEKYOLU SOK. NO:13 URLA/İZMİR",
+        "ID": 95,
+        "PARENT_ID": 77
+    }
+]
