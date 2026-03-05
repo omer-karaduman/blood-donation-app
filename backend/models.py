@@ -127,19 +127,14 @@ class Institution(Base):
     tipi = Column(String, nullable=False) # 'Hastane' veya 'Kan Merkezi'
     
     # 2. Akıllı Hiyerarşi (Parent-Child)
-    # Bu sütun, eğer kurum bir alt birimse (Child), ana kurumun ID'sini tutar.
     parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
-    hiyerarsi_tipi = Column(String, nullable=False) # 'Parent', 'Child' veya 'Bağımsız Kurum'
     
     # 3. Konum ve Adres Verisi
-    # PostGIS destekli koordinat sistemi
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
-    ilce = Column(String, nullable=False, index=True) # Filtreleme için ilçe kolonu
-    iletisim = Column(String, nullable=False) # Telefon veya Tam Adres
-    yetkili_kisi = Column(String, nullable=False, default="Başhekimlik/Müdürlük")
+    ilce = Column(String, nullable=False, index=True) 
+    tam_adres = Column(String, nullable=False) 
 
     # 4. İlişkiler (SQLAlchemy Magic)
-    # Bir ana kurumun altındaki tüm birimleri 'ana_kurum.sub_units' ile çekebilirsin.
     sub_units = relationship(
         "Institution", 
         backref=backref('parent', remote_side=[kurum_id]),
@@ -161,7 +156,7 @@ class BloodRequest(Base):
 class DonationHistory(Base):
     __tablename__ = "donation_history"
     bagis_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("donor_profiles.user_id")) # Donör profiline bağlandı
+    user_id = Column(UUID(as_uuid=True), ForeignKey("donor_profiles.user_id"))
     kurum_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"))
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=True)
     bagis_tarihi = Column(DateTime, default=datetime.utcnow)
@@ -196,7 +191,7 @@ class GamificationData(Base):
 class AgentLog(Base):
     __tablename__ = "agent_logs"
     log_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id")) # Auth hesabına bağlı
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"))
     kullanici_mesaji = Column(String, nullable=False)
     agent_yaniti = Column(String, nullable=False)
     islem_tarihi = Column(DateTime, default=datetime.utcnow)

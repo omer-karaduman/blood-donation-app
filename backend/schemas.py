@@ -48,9 +48,7 @@ class InstitutionBase(BaseModel):
     kurum_adi: str
     tipi: str           # 'Hastane' veya 'Kan Merkezi'
     ilce: str           # İzmir'in ilçesi
-    iletisim: str       # Tam adres bilgisi
-    yetkili_kisi: str
-    hiyerarsi_tipi: str # 'Parent' veya 'Child'
+    tam_adres: str      # İletişim yerine tam adres eklendi
 
 class InstitutionResponse(InstitutionBase):
     kurum_id: UUID

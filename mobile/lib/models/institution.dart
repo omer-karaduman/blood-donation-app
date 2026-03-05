@@ -1,31 +1,36 @@
 class Institution {
-  final String id;
+  final dynamic id; // Backend UUID gönderiyorsa String, JSON ise int olabilir
   final String ad;
+  final String tipi;
   final String ilce;
   final String tamAdres;
-  final String parentAdi;
-  final String hiyerarsiTipi;
-  final String tipi; // YENİ ALAN
+  final double enlem;
+  final double boylam;
+  final dynamic parentId; // Alt birim değilse null olur
 
   Institution({
-    required this.id, 
-    required this.ad, 
-    required this.ilce, 
-    required this.tamAdres, 
-    required this.parentAdi, 
-    required this.hiyerarsiTipi,
+    required this.id,
+    required this.ad,
     required this.tipi,
+    required this.ilce,
+    required this.tamAdres,
+    required this.enlem,
+    required this.boylam,
+    this.parentId,
   });
 
   factory Institution.fromJson(Map<String, dynamic> json) {
     return Institution(
-      id: json['kurum_id'].toString(),
-      ad: json['kurum_adi'] ?? "Bilinmiyor",
-      ilce: json['ilce'] ?? "",
-      tamAdres: json['tam_adres'] ?? "",
-      parentAdi: json['parent_adi'] ?? "Bağımsız Kurum",
-      hiyerarsiTipi: json['hiyerarsi_tipi'] ?? "Parent",
-      tipi: json['tipi'] ?? "Hastane", // JSON'dan gelen tipi alanı
+      // JSON'u doğrudan okuyorsanız büyük harfli, API'den alıyorsanız küçük harfli (snake_case) gelebilir.
+      // Her iki duruma da uyumlu olması için esnek bırakıyoruz:
+      id: json['ID'] ?? json['kurum_id'] ?? json['id'],
+      ad: json['ADI'] ?? json['kurum_adi'] ?? "Bilinmiyor",
+      tipi: json['TIPI'] ?? json['tipi'] ?? "Hastane",
+      ilce: json['ILCE'] ?? json['ilce'] ?? "",
+      tamAdres: json['TAM_ADRES'] ?? json['tam_adres'] ?? "",
+      enlem: (json['ENLEM'] ?? json['enlem'] ?? 0.0).toDouble(),
+      boylam: (json['BOYLAM'] ?? json['boylam'] ?? 0.0).toDouble(),
+      parentId: json['PARENT_ID'] ?? json['parent_id'],
     );
   }
 }

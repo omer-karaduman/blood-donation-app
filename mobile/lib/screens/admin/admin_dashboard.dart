@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'institution_management.dart';
+import 'staff_management_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({super.key});
@@ -73,8 +74,11 @@ class AdminDashboard extends StatelessWidget {
                   icon: Icons.badge_rounded, 
                   color: Colors.blue.shade400,
                   onTap: () {
-                    // İleride Personel Yönetimi ekranına bağlanacak
-                    debugPrint("Personel yönetimi tıklandı");
+                    // YENİ YÖNLENDİRME KODU BURADA
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const StaffManagementScreen()),
+                    );
                   },
                 ),
                 _buildActionCard(

@@ -2,9 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
 from geoalchemy2.elements import WKTElement
+from sqlalchemy import or_
 import models
 import schemas
 from database import engine, SessionLocal
+import uuid
 
 # Tabloları oluştur
 models.Base.metadata.create_all(bind=engine)
@@ -71,23 +73,148 @@ def get_donor_list(skip: int = 0, limit: int = 100, db: Session = Depends(get_db
 
 @app.get("/institutions/", response_model=list[schemas.InstitutionResponse])
 def get_institutions(ilce: str = None, tipi: str = None, db: Session = Depends(get_db)):
-    # 1. Sorguyu başlat ve 'sub_units' (alt birimler) ilişkisini önceden yükle (Eager Loading)
-    query = db.query(models.Institution).options(joinedload(models.Institution.sub_units))
+    # 1. Flutter tarafı düz liste beklediği için joinedload ile iç içe gömmeye (nested) gerek yok.
+    query = db.query(models.Institution)
 
-    # 2. Filtreleri Uygula
+    # 2. İlçe Filtresi
     if ilce and ilce != "Tümü":
         def upper_tr(text):
             return text.replace("i", "İ").replace("ı", "I").upper()
         # Veritabanındaki 'ilce' kolonu üzerinden filtrele
         query = query.filter(models.Institution.ilce.ilike(f"%{upper_tr(ilce)}%"))
     
+    # 3. Akıllı Tip Filtresi (Kritik Nokta)
     if tipi and tipi != "Tümü":
-        # 'Hastane' veya 'Kan Merkezi' filtrelemesi
-        query = query.filter(models.Institution.tipi == tipi)
+        # Eğer filtre "Kan Merkezi" ise:
+        # Kendisi Kan Merkezi olanları VEYA alt birimlerinden (sub_units) herhangi biri 
+        # Kan Merkezi olan "Hastaneleri" de getir diyoruz. 
+        # Böylece Flutter, Kan Merkezini ekrana çizerken ana Hastaneyi (parent) de bulabilir!
+        query = query.filter(
+            or_(
+                models.Institution.tipi == tipi,
+                models.Institution.sub_units.any(models.Institution.tipi == tipi)
+            )
+        )
 
-    # 3. KRİTİK NOKTA: Sadece 'Root' (Kök) kurumları döndür.
-    # parent_id'si None olanlar ya bir ana hastanedir ya da bağımsız bir merkezdir.
-    # Alt birimler (Child), Pydantic'in sub_units alanı sayesinde bunların içinde dönecektir.
-    results = query.filter(models.Institution.parent_id == None).all()
+    # 4. Sadece Parent olanları DEĞİL, filtreye uyan tüm kayıtları (Parent + Child) düz bir liste olarak dönüyoruz.
+    # Flutter bu düz listeyi alıp ID'ler üzerinden hiyerarşik kartları başarıyla oluşturacak.
+    results = query.all()
     
     return results
+
+
+# --- 1. KURUMA AİT PERSONELLERİ GETİRME ---
+@app.get("/institutions/{kurum_id}/staff")
+def get_institution_staff(kurum_id: uuid.UUID, db: Session = Depends(get_db)):
+    # Bu kuruma atanmış tüm sağlık personellerini getir
+    staff = db.query(models.StaffProfile).filter(models.StaffProfile.kurum_id == kurum_id).all()
+    
+    # Flutter tarafında kolay okumak için listeyi formatlıyoruz
+    result = []
+    for s in staff:
+        result.append({
+            "user_id": s.user_id,
+            "ad_soyad": s.ad_soyad,
+            "unvan": s.unvan,
+            "personel_no": s.personel_no,
+            "email": s.user.email, # User tablosundan e-postayı da çekiyoruz
+            "is_active": s.user.is_active
+        })
+    return result
+
+# --- 2. KURUMA YENİ SAĞLIK PERSONELİ EKLEME ---
+@app.post("/staff/", response_model=schemas.UserResponse)
+def create_staff(staff: schemas.StaffCreate, db: Session = Depends(get_db)):
+    # 1. E-posta daha önce alınmış mı kontrol et
+    existing_user = db.query(models.User).filter(models.User.email == staff.email).first()
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Bu e-posta adresi zaten kullanımda.")
+
+    # 2. Önce Auth(Kimlik) için ana User kaydını oluştur
+    # NOT: Gerçek projede 'passlib' ile şifreyi hash'lemelisiniz. 
+    # Şimdilik prototip için düz metin veya basit hash olarak kaydediyoruz.
+    new_user = models.User(
+        email=staff.email,
+        hashed_password=staff.password, # <-- İleride buraya hash fonksiyonu gelecek
+        role=models.UserRoleEnum.HEALTHCARE # Rolü otomatik 'Healthcare' yapıyoruz
+    )
+    db.add(new_user)
+    db.flush() # Veritabanına itip UUID'sini alıyoruz
+
+    # 3. Sağlık Personeli Profilini (StaffProfile) oluştur ve ana kullanıcıya bağla
+    new_staff_profile = models.StaffProfile(
+        user_id=new_user.user_id,
+        kurum_id=staff.kurum_id,
+        ad_soyad=staff.ad_soyad,
+        unvan=staff.unvan,
+        personel_no=staff.personel_no
+    )
+    db.add(new_staff_profile)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
+
+@app.get("/staff/")
+def get_all_staff(db: Session = Depends(get_db)):
+    # Veritabanındaki tüm sağlık personellerini çek
+    staff_list = db.query(models.StaffProfile).all()
+    
+    result = []
+    for s in staff_list:
+        result.append({
+            "user_id": str(s.user_id),
+            "ad_soyad": s.ad_soyad,
+            "unvan": s.unvan,
+            "personel_no": s.personel_no,
+            "email": s.user.email if s.user else "Bilinmiyor",
+            "is_active": s.user.is_active if s.user else False,
+            "kurum_id": str(s.kurum_id),
+            # İlişkisel tablodan hastane adını doğrudan çekiyoruz
+            "kurum_adi": s.institution.kurum_adi if s.institution else "Bilinmeyen Kurum",
+            "kurum_tipi": s.institution.tipi if s.institution else ""
+        })
+    return result
+
+# --- 4. PERSONEL BİLGİLERİNİ GÜNCELLEME ---
+@app.put("/staff/{user_id}")
+def update_staff(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
+    staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == user_id).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    
+    if not staff or not user:
+        raise HTTPException(status_code=404, detail="Personel bulunamadı")
+
+    # Personel profili güncellemeleri
+    if "ad_soyad" in update_data:
+        staff.ad_soyad = update_data["ad_soyad"]
+    if "unvan" in update_data:
+        staff.unvan = update_data["unvan"]
+    if "kurum_id" in update_data:
+        staff.kurum_id = update_data["kurum_id"]
+        
+    # User (Auth) tablosu güncellemeleri
+    if "is_active" in update_data:
+        user.is_active = update_data["is_active"]
+    if "email" in update_data and update_data["email"]:
+        user.email = update_data["email"]
+    if "password" in update_data and update_data["password"]:
+        # Gerçek projede burası hash'lenerek kaydedilir
+        user.hashed_password = update_data["password"] 
+
+    db.commit()
+    return {"message": "Personel başarıyla güncellendi"}
+
+# --- 5. PERSONEL SİLME (Hesabı Tamamen Kapatma) ---
+@app.delete("/staff/{user_id}")
+def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == user_id).first()
+    user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    
+    if not staff or not user:
+        raise HTTPException(status_code=404, detail="Personel bulunamadı")
+
+    db.delete(staff)
+    db.delete(user)
+    db.commit()
+    return {"message": "Personel sistemden tamamen silindi"}

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import '../../models/institution.dart'; 
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'institution_detail_screen.dart';
 
 class InstitutionManagementScreen extends StatefulWidget {
   const InstitutionManagementScreen({super.key});
@@ -16,6 +17,13 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
   String selectedDistrict = "Tümü";
   String selectedType = "Tümü";
 
+  // --- ARAMA ÇUBUĞU KONTROLCÜLERİ ---
+  final TextEditingController _nameSearchController = TextEditingController();
+  final TextEditingController _districtSearchController = TextEditingController();
+
+  // --- API İSTEKLERİNİ KONTROL ETMEK İÇİN FUTURE DEĞİŞKENİ ---
+  late Future<List<Institution>> _institutionsFuture;
+
   final List<String> districts = [
     "Tümü", "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", 
     "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir", 
@@ -23,6 +31,19 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", 
     "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshData();
+  }
+
+  @override
+  void dispose() {
+    _nameSearchController.dispose();
+    _districtSearchController.dispose();
+    super.dispose();
+  }
 
   String get baseUrl {
     if (kIsWeb) return 'http://localhost:8000'; 
@@ -32,6 +53,12 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
       return 'http://localhost:8000';
     }
     return 'http://localhost:8000';
+  }
+
+  void _refreshData() {
+    setState(() {
+      _institutionsFuture = fetchInstitutions();
+    });
   }
 
   Future<List<Institution>> fetchInstitutions() async {
@@ -54,12 +81,25 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     }
   }
 
+  // --- TÜRKÇE KARAKTER DUYARLI KÜÇÜLTME FONKSİYONU ---
+  String _normalizeTr(String text) {
+    return text
+        .replaceAll('I', 'ı')
+        .replaceAll('İ', 'i')
+        .replaceAll('Ş', 'ş')
+        .replaceAll('Ç', 'ç')
+        .replaceAll('Ö', 'ö')
+        .replaceAll('Ğ', 'ğ')
+        .replaceAll('Ü', 'ü')
+        .toLowerCase();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: RefreshIndicator(
-        onRefresh: () async => setState(() {}),
+        onRefresh: () async => _refreshData(), 
         child: CustomScrollView(
           slivers: [
             SliverAppBar.medium(
@@ -72,12 +112,13 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                 children: [
                   _buildDistrictFilter(),
                   _buildTypeFilter(),
+                  _buildSearchBars(), 
                   const SizedBox(height: 10),
                 ],
               ),
             ),
             FutureBuilder<List<Institution>>(
-              future: fetchInstitutions(),
+              future: _institutionsFuture, 
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const SliverFillRemaining(child: Center(child: CircularProgressIndicator()));
@@ -86,23 +127,40 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                 }
 
                 final List<Institution> allData = snapshot.data ?? [];
-                
-                // --- GELİŞMİŞ HİYERARŞİ MANTIĞI ---
-                // 1. Önce 'Parent' olanları veya 'Bağımsız Kurum' olarak işaretlenmiş ana yapıları bul
-                final List<Institution> rootInstitutions = allData.where((inst) => 
-                  inst.hiyerarsiTipi == "Parent" || inst.parentAdi == "Bağımsız Kurum"
+
+                // --- TEXT ARAMA FİLTRESİ (TÜRKÇE DESTEKLİ) ---
+                final String nameQuery = _normalizeTr(_nameSearchController.text);
+                final String districtQuery = _normalizeTr(_districtSearchController.text);
+
+                final List<Institution> processedData = allData.where((inst) {
+                  // Hem aranan kelimeyi hem de kurum adını Türkçe kurallarına göre küçültüyoruz
+                  final bool matchesName = _normalizeTr(inst.ad).contains(nameQuery);
+                  final bool matchesDistrict = _normalizeTr(inst.ilce).contains(districtQuery);
+                  return matchesName && matchesDistrict;
+                }).toList();
+
+                // 1. Önce 'Parent' olanları bul
+                final List<Institution> rootInstitutions = processedData.where((inst) => 
+                  inst.parentId == null
                 ).toList();
 
                 // 2. 'Child' olanları ayır
-                final List<Institution> subInstitutions = allData.where((inst) => 
-                  inst.hiyerarsiTipi == "Child"
+                final List<Institution> subInstitutions = processedData.where((inst) => 
+                  inst.parentId != null
                 ).toList();
+
+                // --- YETİM ÇOCUKLAR (ORPHAN) MANTIĞI ---
+                final List<Institution> orphanInstitutions = subInstitutions.where((child) => 
+                  !rootInstitutions.any((parent) => parent.id == child.parentId)
+                ).toList();
+
+                rootInstitutions.addAll(orphanInstitutions);
+                // ------------------------------------------------
 
                 if (rootInstitutions.isEmpty && subInstitutions.isEmpty) {
                   return const SliverFillRemaining(child: Center(child: Text("Kayıt bulunamadı.")));
                 }
 
-                // Ekranda sadece ana kurumları döneceğiz, çocuklar onların altında render edilecek
                 return SliverPadding(
                   padding: const EdgeInsets.only(bottom: 100),
                   sliver: SliverList(
@@ -110,9 +168,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                       (context, index) {
                         final parent = rootInstitutions[index];
                         
-                        // Bu ebeveyne (parent) bağlı olan çocukları (child) isminden bul
                         final childrenOfThisParent = subInstitutions.where((child) => 
-                          child.parentAdi == parent.ad
+                          child.parentId == parent.id
                         ).toList();
 
                         return _buildHierarchyGroup(context, parent, childrenOfThisParent);
@@ -129,15 +186,78 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     );
   }
 
-  // --- HİYERARŞİK GRUP OLUŞTURUCU ---
+  Widget _buildSearchBars() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 5),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 3,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)
+                ],
+              ),
+              child: TextField(
+                controller: _nameSearchController,
+                onChanged: (value) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: "Kurum Ara...",
+                  hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                  prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.transparent,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)
+                ],
+              ),
+              child: TextField(
+                controller: _districtSearchController,
+                onChanged: (value) => setState(() {}),
+                decoration: InputDecoration(
+                  hintText: "İlçe Ara...",
+                  hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                  prefixIcon: const Icon(Icons.location_city, size: 18, color: Colors.grey),
+                  filled: true,
+                  fillColor: Colors.transparent,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHierarchyGroup(BuildContext context, Institution parent, List<Institution> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. Ana Kurum Kartı
         _buildInstitutionCard(context, parent, isChild: false),
-        
-        // 2. Eğer varsa Alt Birim Kartları (Sağa yaslı ve bağlı ikonlu)
         if (children.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(left: 45, right: 20),
@@ -152,7 +272,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     );
   }
 
-  // --- ORTAK KART TASARIMI ---
   Widget _buildInstitutionCard(BuildContext context, Institution inst, {required bool isChild}) {
     bool isBloodBank = inst.tipi == "Kan Merkezi";
     Color themeColor = isBloodBank ? Colors.red : Colors.blue;
@@ -186,18 +305,23 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           ),
         ),
         subtitle: Text(
-          "${inst.ilce} - ${inst.tipi}",
+          "${inst.ilce} - ${inst.tamAdres}", 
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
         trailing: const Icon(Icons.settings_outlined, size: 20, color: Colors.grey),
-        onTap: () {
-          // Yönetim veya detay sayfasına yönlendirme
+        onTap: () {Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => InstitutionDetailScreen(institution: inst),
+            ),
+          );
         },
       ),
     );
   }
 
-  // --- FİLTRELEME WIDGETLARI ---
   Widget _buildDistrictFilter() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -214,7 +338,12 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
             isExpanded: true,
             icon: const Icon(Icons.location_on_outlined, color: Colors.red),
             items: districts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-            onChanged: (val) => val != null ? setState(() => selectedDistrict = val) : null,
+            onChanged: (val) {
+              if (val != null) {
+                selectedDistrict = val;
+                _refreshData();
+              }
+            },
           ),
         ),
       ),
@@ -233,7 +362,10 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
             ButtonSegment(value: "Kan Merkezi", label: Text("Kan Merkezi"), icon: Icon(Icons.bloodtype)),
           ],
           selected: {selectedType},
-          onSelectionChanged: (newSelection) => setState(() => selectedType = newSelection.first),
+          onSelectionChanged: (newSelection) {
+            selectedType = newSelection.first;
+            _refreshData();
+          },
           style: SegmentedButton.styleFrom(
             backgroundColor: Colors.white,
             selectedBackgroundColor: Colors.red.shade100,
