@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'screens/donor_list_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/healthcare_screen.dart'; 
 import 'screens/admin/admin_dashboard.dart';
+import 'screens/staff/staff_dashboard.dart'; // Eski healthcare_screen yerine artık bu var
 
 void main() {
   runApp(const BloodDonationApp());
@@ -19,25 +19,22 @@ class BloodDonationApp extends StatelessWidget {
     return MaterialApp(
       title: 'Kan Bağışı AI',
       debugShowCheckedModeBanner: false,
-      // --- İŞTE O FERAH TEMA AYARLARI BURADA BAŞLIYOR ---
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE53935), // Modern ve yumuşak bir kırmızı
+          seedColor: const Color(0xFFE53935), 
           primary: const Color(0xFFE53935),
-          secondary: const Color(0xFF263238), // Profesyonel koyu ton
-          surface: const Color(0xFFF8F9FA),   // Gözü yormayan açık gri fon
+          secondary: const Color(0xFF263238), 
+          surface: const Color(0xFFF8F9FA),   
         ),
-        // Kartların köşelerini yumuşatıyoruz
-        cardTheme: const CardThemeData( // CardTheme yerine CardThemeData yazdık
+        cardTheme: const CardThemeData(
           elevation: 0,
           margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(24)), // Daha yumuşak köşeler
+            borderRadius: BorderRadius.all(Radius.circular(24)), 
           ),
           color: Colors.white,
         ),
-        // Appbar'ı şeffaf ve modern yapıyoruz
         appBarTheme: const AppBarTheme(
           centerTitle: false,
           backgroundColor: Colors.transparent,
@@ -50,7 +47,6 @@ class BloodDonationApp extends StatelessWidget {
           ),
         ),
       ),
-      // ------------------------------------------------
       home: const RoleSelectionScreen(), 
     );
   }
@@ -86,8 +82,9 @@ class RoleSelectionScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
               const SizedBox(height: 40),
+              // Roller artık veritabanı standartlarına uygun (donor, staff, admin)
               _roleButton(context, "Donör (Bağışçı)", "donor", Icons.favorite),
-              _roleButton(context, "Sağlık Çalışanı (Doktor)", "healthcare", Icons.medication),
+              _roleButton(context, "Sağlık Personeli (Staff)", "staff", Icons.medication),
               _roleButton(context, "Admin (Yönetici)", "admin", Icons.admin_panel_settings),
             ],
           ),
@@ -140,8 +137,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     switch (widget.userRole) {
       case 'admin':
         return [const AdminDashboard(), const ProfileScreen()];
-      case 'healthcare':
-        return [const HealthcareScreen(), const ProfileScreen()];
+      case 'staff': // TERİM STAFF OLARAK GÜNCELLENDİ
+        return [const StaffDashboard(), const ProfileScreen()];
       case 'donor':
       default:
         return [const HomeScreen(), const DonorListScreen(), const ProfileScreen()];
@@ -152,12 +149,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     switch (widget.userRole) {
       case 'admin':
         return const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Panel'),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Sistem Paneli'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
-      case 'healthcare':
+      case 'staff': // TERİM STAFF OLARAK GÜNCELLENDİ
         return const [
-          BottomNavigationBarItem(icon: Icon(Icons.add_alert_rounded), label: 'Talep Aç'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_hospital_rounded), label: 'Kurum Paneli'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
       case 'donor':

@@ -6,3 +6,7 @@ python-dotenv
 geoalchemy2
 email-validator
 faker
+pandas
+numpy
+scikit-learn
+matplotlib

@@ -1,4 +1,4 @@
-enum UserRole { donor, healthcare, admin }
+enum UserRole { donor, staff, admin }
 
 class User {
   final String id;
@@ -12,6 +12,7 @@ class User {
     return User(
       id: json['user_id'],
       email: json['email'],
+      // Backend'den gelen string değeri enum ile eşleştirir
       role: UserRole.values.firstWhere((e) => e.name == json['role']),
       isActive: json['is_active'] ?? true,
     );

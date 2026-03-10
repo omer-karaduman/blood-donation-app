@@ -8,6 +8,14 @@ import schemas
 from database import engine, SessionLocal
 import uuid
 
+# --- YENİ EKLENEN ML KÜTÜPHANELERİ ---
+import joblib
+import pandas as pd
+import os
+from pydantic import BaseModel
+from typing import List
+# ------------------------------------
+
 # Tabloları oluştur
 models.Base.metadata.create_all(bind=engine)
 
@@ -27,6 +35,17 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# --- ML MODELİNİ UYGULAMA BAŞLARKEN YÜKLE ---
+MODEL_PATH = "ml_models/donor_rf_model.pkl"
+rf_model = None
+
+if os.path.exists(MODEL_PATH):
+    rf_model = joblib.load(MODEL_PATH)
+    print("✅ ML Modeli başarıyla yüklendi!")
+else:
+    print("⚠️ ML Modeli bulunamadı. Lütfen önce train_model.py scriptini çalıştırın.")
+# --------------------------------------------
 
 @app.get("/")
 def read_root():
@@ -131,15 +150,13 @@ def create_staff(staff: schemas.StaffCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Bu e-posta adresi zaten kullanımda.")
 
     # 2. Önce Auth(Kimlik) için ana User kaydını oluştur
-    # NOT: Gerçek projede 'passlib' ile şifreyi hash'lemelisiniz. 
-    # Şimdilik prototip için düz metin veya basit hash olarak kaydediyoruz.
     new_user = models.User(
         email=staff.email,
-        hashed_password=staff.password, # <-- İleride buraya hash fonksiyonu gelecek
-        role=models.UserRoleEnum.HEALTHCARE # Rolü otomatik 'Healthcare' yapıyoruz
+        hashed_password=staff.password,
+        role=models.UserRoleEnum.HEALTHCARE # Not: İleride bunu veritabanı modelinden STAFF'a çevirebilirsin
     )
     db.add(new_user)
-    db.flush() # Veritabanına itip UUID'sini alıyoruz
+    db.flush()
 
     # 3. Sağlık Personeli Profilini (StaffProfile) oluştur ve ana kullanıcıya bağla
     new_staff_profile = models.StaffProfile(
@@ -170,7 +187,6 @@ def get_all_staff(db: Session = Depends(get_db)):
             "email": s.user.email if s.user else "Bilinmiyor",
             "is_active": s.user.is_active if s.user else False,
             "kurum_id": str(s.kurum_id),
-            # İlişkisel tablodan hastane adını doğrudan çekiyoruz
             "kurum_adi": s.institution.kurum_adi if s.institution else "Bilinmeyen Kurum",
             "kurum_tipi": s.institution.tipi if s.institution else ""
         })
@@ -199,13 +215,12 @@ def update_staff(user_id: uuid.UUID, update_data: dict, db: Session = Depends(ge
     if "email" in update_data and update_data["email"]:
         user.email = update_data["email"]
     if "password" in update_data and update_data["password"]:
-        # Gerçek projede burası hash'lenerek kaydedilir
         user.hashed_password = update_data["password"] 
 
     db.commit()
     return {"message": "Personel başarıyla güncellendi"}
 
-# --- 5. PERSONEL SİLME (Hesabı Tamamen Kapatma) ---
+# --- 5. PERSONEL SİLME ---
 @app.delete("/staff/{user_id}")
 def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
     staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == user_id).first()
@@ -218,3 +233,65 @@ def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
     db.delete(user)
     db.commit()
     return {"message": "Personel sistemden tamamen silindi"}
+
+# ======================================================================
+# --- 🤖 YENİ: MAKİNE ÖĞRENMESİ TABANLI AKILLI DONÖR EŞLEŞTİRME API ---
+# ======================================================================
+
+# Frontend'den gelecek donör listesi formatı
+class DonorFeature(BaseModel):
+    donor_id: str
+    age: int
+    past_donations: int
+    days_since_last_donation: int
+    response_rate: float
+    sensitivity_level: int
+    preferred_hour: int
+
+class MatchRequest(BaseModel):
+    donors: List[DonorFeature]
+
+@app.post("/api/ml/match-donors")
+def match_donors(request: MatchRequest):
+    if rf_model is None:
+        raise HTTPException(status_code=500, detail="Sistemde aktif bir ML modeli bulunamadı.")
+    
+    # 1. Gelen JSON verisini Pandas DataFrame'e çevir
+    donors_data = [d.dict() for d in request.donors]
+    if not donors_data:
+        return {"matches": []}
+        
+    df = pd.DataFrame(donors_data)
+    
+    # 2. Modelin eğitildiği özellik sütunlarını (features) seç
+    features = [
+        'age', 
+        'past_donations', 
+        'days_since_last_donation', 
+        'response_rate', 
+        'sensitivity_level', 
+        'preferred_hour'
+    ]
+    
+    try:
+        X = df[features]
+    except KeyError as e:
+        raise HTTPException(status_code=400, detail=f"Eksik veri sütunu: {str(e)}")
+    
+    # 3. Modelden 'Bağış Yapma İhtimali' skorlarını al
+    # predict_proba bize [gelmeme_ihtimali, gelme_ihtimali] döner. 1. index lazim.
+    probabilities = rf_model.predict_proba(X)[:, 1]
+    
+    # 4. Sonuçları ID'ler ve skorlar ile eşleştir
+    results = []
+    for i, donor in enumerate(donors_data):
+        match_score = round(probabilities[i] * 100, 1) # Örn: %87.4
+        results.append({
+            "donor_id": donor["donor_id"],
+            "match_score": match_score
+        })
+        
+    # 5. Skoru EN YÜKSEK olandan en düşüğe doğru sırala (Smart Selection)
+    results = sorted(results, key=lambda x: x["match_score"], reverse=True)
+    
+    return {"status": "success", "matches": results}
