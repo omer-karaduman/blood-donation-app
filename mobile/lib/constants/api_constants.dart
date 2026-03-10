@@ -12,6 +12,7 @@ class ApiConstants {
   static const String staffEndpoint = '$baseUrl/staff/';
   static const String donorsEndpoint = '$baseUrl/donors/';
   static const String institutionsEndpoint = '$baseUrl/institutions/';
-  static const String mlMatchEndpoint = '$baseUrl/api/ml/match-donors';
-  static const String smartMatchEndpoint = '$baseUrl/api/ml/smart-match';
+  static const String requestsEndpoint = '$baseUrl/requests/';
+  static const String myRequestsEndpoint = '$baseUrl/staff/my-requests';
+  static const String adminLogsEndpoint = '$baseUrl/admin/system-logs';
 }

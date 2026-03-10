@@ -2,7 +2,14 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from typing import Optional, List # List ekledik
 from datetime import datetime, date
 from uuid import UUID
-from models import GenderEnum, BloodTypeEnum, UserRoleEnum
+from models import (
+    UserRoleEnum, 
+    GenderEnum, 
+    BloodTypeEnum, 
+    UrgencyEnum, 
+    RequestStatusEnum, 
+    NotificationReactionEnum
+)
 
 # --- TEMEL AUTH ŞEMALARI ---
 
@@ -77,9 +84,36 @@ class LoginRequest(BaseModel):
 
 
 class BloodRequestCreate(BaseModel):
-    kurum_id: str
-    yapan_personel_id: str  # İşlemi başlatan sağlık çalışanının user_id'si
-    istenen_kan_grubu: str
+    """Staff'ın sadece ihtiyacı girdiği şema"""
+    istenen_kan_grubu: BloodTypeEnum
     unite_sayisi: int
-    aciliyet_durumu: str = "Normal"
-    gecerlilik_suresi_saat: int = 24  # Örn: 2 saat içinde bulunmalı, yoksa talep kritikleşir
+    aciliyet_durumu: UrgencyEnum = UrgencyEnum.NORMAL
+
+class DonorReactionSummary(BaseModel):
+    """Staff'ın 'Kimler geliyor?' listesinde göreceği veri"""
+    donor_ad_soyad: str
+    reaksiyon: NotificationReactionEnum
+    reaksiyon_zamani: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+class BloodRequestDetailResponse(BaseModel):
+    """Staff'ın kendi talebini ve donör yanıtlarını izleyeceği şema"""
+    talep_id: UUID
+    istenen_kan_grubu: BloodTypeEnum
+    unite_sayisi: int
+    durum: RequestStatusEnum
+    olusturma_tarihi: datetime
+    # Donörlerin verdiği yanıtların listesi
+    donor_yanitlari: List[DonorReactionSummary] = []
+    model_config = ConfigDict(from_attributes=True)
+
+class AdminRequestLogResponse(BaseModel):
+    """Admin'in sistemdeki tüm trafiği izleyeceği şema"""
+    talep_id: UUID
+    kurum_adi: str
+    staff_ad_soyad: str
+    olusturma_tarihi: datetime
+    istenen_kan_grubu: BloodTypeEnum
+    # ML modelinin önerdiği donör sayısı ve başarı durumu
+    onerilen_donor_sayisi: int
+    model_config = ConfigDict(from_attributes=True)

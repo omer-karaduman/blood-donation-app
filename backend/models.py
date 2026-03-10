@@ -146,11 +146,21 @@ class BloodRequest(Base):
     __tablename__ = "blood_requests"
     talep_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     kurum_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"))
+    
+    # KRİTİK EKLEME: Talebi hangi personelin açtığını takip etmek için
+    olusturan_personel_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
+    
     istenen_kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
     unite_sayisi = Column(Integer, nullable=False)
     aciliyet_durumu = Column(SQLEnum(UrgencyEnum), default=UrgencyEnum.NORMAL)
     durum = Column(SQLEnum(RequestStatusEnum), default=RequestStatusEnum.AKTIF)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
+
+    # İlişkiler: Admin loglarında "Hangi staff açtı?" sorusunun cevabı için
+    personel = relationship("User", foreign_keys=[olusturan_personel_id])
+    institution = relationship("Institution")
+    # Bu talebe bağlı bildirimler (Kimlere öneri gittiğini buradan göreceğiz)
+    bildirimler = relationship("NotificationLog", back_populates="blood_request")
 
 # --- 8. BAĞIŞ GEÇMİŞİ ---
 class DonationHistory(Base):
@@ -203,12 +213,18 @@ class AgentLog(Base):
 class NotificationLog(Base):
     __tablename__ = "notification_logs"
     log_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False) # Bildirim giden Donör
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=False)
+    
+    # ML Bilgisi: Admin'in "ML kimi neden önerdi?" kısmını görmesi için
+    ml_skoru_o_an = Column(Float, nullable=True) # Öneri anındaki tahmin skoru
+    
     gonderim_zamani = Column(DateTime, default=datetime.utcnow)
     iletilme_durumu = Column(SQLEnum(NotificationDeliveryEnum), nullable=False)
-    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), nullable=True) 
+    
+    # Staff'ın göreceği reaksiyonlar
+    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), default=NotificationReactionEnum.GORMEZDEN_GELDI) 
     reaksiyon_zamani = Column(DateTime, nullable=True) 
 
     user = relationship("User", back_populates="notification_logs")
-    blood_request = relationship("BloodRequest")
+    blood_request = relationship("BloodRequest", back_populates="bildirimler")
