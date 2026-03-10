@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 // İleride eklenecek ekranların importları (örnek):
 // import 'blood_request_screen.dart';
-// import 'ml_donor_match_screen.dart';
+import 'ml_donor_match_screen.dart';
 // import 'emergency_broadcast_screen.dart';
 
 class StaffDashboard extends StatelessWidget {
@@ -82,7 +82,7 @@ class StaffDashboard extends StatelessWidget {
                   icon: Icons.psychology_rounded, 
                   color: Colors.indigo.shade400,
                   onTap: () {
-                    // Navigator.push(context, MaterialPageRoute(builder: (context) => const MlDonorMatchScreen()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MlDonorMatchScreen()));
                     debugPrint("ML Eşleştirme tıklandı");
                   },
                 ),

@@ -13,4 +13,5 @@ class ApiConstants {
   static const String donorsEndpoint = '$baseUrl/donors/';
   static const String institutionsEndpoint = '$baseUrl/institutions/';
   static const String mlMatchEndpoint = '$baseUrl/api/ml/match-donors';
+  static const String smartMatchEndpoint = '$baseUrl/api/ml/smart-match';
 }

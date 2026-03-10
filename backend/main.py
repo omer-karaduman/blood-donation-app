@@ -7,6 +7,8 @@ import models
 import schemas
 from database import engine, SessionLocal
 import uuid
+from datetime import datetime
+import traceback
 
 # --- YENİ EKLENEN ML KÜTÜPHANELERİ ---
 import joblib
@@ -295,3 +297,92 @@ def match_donors(request: MatchRequest):
     results = sorted(results, key=lambda x: x["match_score"], reverse=True)
     
     return {"status": "success", "matches": results}
+
+
+
+@app.get("/api/ml/smart-match")
+def smart_match(kan_grubu: str, db: Session = Depends(get_db)):
+    try:
+        if rf_model is None:
+            raise HTTPException(status_code=500, detail="ML modeli sistemde aktif değil.")
+        
+        # 1. Gelen metni ("A+") veritabanındaki Enum tipine güvenlice çeviriyoruz
+        try:
+            enum_kan_grubu = models.BloodTypeEnum(kan_grubu)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Geçersiz kan grubu formatı.")
+
+        # 2. Veritabanından istenen kan grubuna sahip donörleri getir
+        donors = db.query(models.DonorProfile)\
+                   .options(joinedload(models.DonorProfile.ml_features))\
+                   .filter(models.DonorProfile.kan_grubu == enum_kan_grubu)\
+                   .filter(models.DonorProfile.kan_verebilir_mi == True)\
+                   .all()
+                   
+        if not donors:
+            return {"matches": []}
+
+        # 3. ML Modeli için verileri hazırla
+        ml_input_data = []
+        valid_donors = []
+
+        for donor in donors:
+            if not donor.ml_features:
+                continue
+                
+            # Yaş hesaplama
+            age = (datetime.utcnow().date() - donor.dogum_tarihi.date()).days // 365
+            
+            # Son bağıştan geçen gün
+            if donor.son_bagis_tarihi:
+                days_since = (datetime.utcnow() - donor.son_bagis_tarihi).days
+            else:
+                days_since = 999 
+                
+            # Yanıt verme oranı
+            total_notif = donor.ml_features.toplam_bildirim_sayisi
+            pos_resp = donor.ml_features.olumlu_yanit_sayisi
+            response_rate = (pos_resp / total_notif) if total_notif > 0 else 0.0
+            
+            ml_input_data.append({
+                "age": age,
+                "past_donations": donor.ml_features.basarili_bagis_sayisi,
+                "days_since_last_donation": days_since,
+                "response_rate": response_rate,
+                "sensitivity_level": 3,
+                "preferred_hour": donor.ml_features.tercih_edilen_saatler[0] if donor.ml_features.tercih_edilen_saatler else 12
+            })
+            valid_donors.append(donor)
+
+        if not ml_input_data:
+            return {"matches": []}
+
+        # 4. Modele sor ve skorları al
+        df = pd.DataFrame(ml_input_data)
+        probabilities = rf_model.predict_proba(df)[:, 1]
+
+        # 5. Sonuçları eşleştir
+        results = []
+        for i, donor in enumerate(valid_donors):
+            match_score = float(round(probabilities[i] * 100, 1))
+        
+            donor.ml_features.ml_tahmin_skoru = match_score
+            
+            results.append({
+                "donor_id": str(donor.user_id),
+                "ad_soyad": donor.ad_soyad,
+                "telefon": donor.telefon,
+                "kan_grubu": donor.kan_grubu.value, # Flutter'a string olarak gönderiyoruz
+                "match_score": match_score
+            })
+
+        db.commit()
+        results = sorted(results, key=lambda x: x["match_score"], reverse=True)
+        
+        return {"status": "success", "matches": results}
+
+    except Exception as e:
+        # Eğer arka planda bir çökme olursa bunu terminale yazdır
+        print("❌ AKILLI EŞLEŞTİRME HATASI:", e)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Sunucu hatası: {str(e)}")

@@ -74,3 +74,12 @@ class StaffCreate(UserCreateBase):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class BloodRequestCreate(BaseModel):
+    kurum_id: str
+    yapan_personel_id: str  # İşlemi başlatan sağlık çalışanının user_id'si
+    istenen_kan_grubu: str
+    unite_sayisi: int
+    aciliyet_durumu: str = "Normal"
+    gecerlilik_suresi_saat: int = 24  # Örn: 2 saat içinde bulunmalı, yoksa talep kritikleşir
