@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/donor.dart';
+import '../constants/api_constants.dart';
 
 class DonorListScreen extends StatefulWidget {
   const DonorListScreen({super.key});
@@ -21,19 +22,25 @@ class _DonorListScreenState extends State<DonorListScreen> {
   }
 
   Future<void> fetchDonors() async {
-    const String apiUrl = 'http://localhost:8000/donors/'; 
-
+    
     try {
-      final response = await http.get(Uri.parse(apiUrl));
+      // YENİ SİSTEM: Doğrudan api_constants'taki adresi çekiyoruz
+      final response = await http.get(Uri.parse(ApiConstants.donorsEndpoint));
+      
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
         setState(() {
           donors = jsonData.map((data) => Donor.fromJson(data)).toList();
           isLoading = false;
         });
+      } else {
+         // Hata durumunda da yükleniyor ikonunu durdurmak iyi bir pratiktir
+         setState(() { isLoading = false; });
+         debugPrint("API Hatası: ${response.statusCode}");
       }
     } catch (e) {
       setState(() { isLoading = false; });
+      debugPrint("Bağlantı Hatası: $e");
     }
   }
 

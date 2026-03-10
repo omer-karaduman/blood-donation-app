@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../../models/institution.dart';
+
+// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
+import '../../constants/api_constants.dart';
 
 class StaffSettingsScreen extends StatefulWidget {
   final Map<String, dynamic> staff;
@@ -25,7 +26,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   late bool _isActive;
   late Institution _selectedInstitution;
   
-  // YENİ: Yüklenme ve Hata Durumları
   bool _isSubmitting = false;
   bool _isDeleting = false;
   String? _formErrorMessage;
@@ -33,15 +33,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   final List<String> unvanListesi = ["Kan Merkezi Sorumlusu", "Başhekim", "Doktor", "Hemşire", "Laborant", "Diğer"];
   late String _selectedTitle;
 
-  String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    } catch (e) {
-      return 'http://localhost:8000';
-    }
-    return 'http://localhost:8000';
-  }
+  // 2. ESKİ 'baseUrl' FONKSİYONUNU TAMAMEN SİLDİK
 
   @override
   void initState() {
@@ -142,7 +134,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                               onTap: () {
                                 setState(() {
                                   _selectedInstitution = inst;
-                                  _formErrorMessage = null; // Seçim yapınca hatayı sil
+                                  _formErrorMessage = null; 
                                 });
                                 Navigator.pop(context);
                               },
@@ -186,8 +178,9 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         "is_active": _isActive,
       };
 
+      // 3. API CONSTANTS İLE GÜNCELLEME İSTEĞİNİ DEĞİŞTİRDİK
       final response = await http.put(
-        Uri.parse('$baseUrl/staff/${widget.staff['user_id']}'),
+        Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'),
         headers: {"Content-Type": "application/json"},
         body: json.encode(body),
       );
@@ -246,7 +239,9 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     });
 
     try {
-      final response = await http.delete(Uri.parse('$baseUrl/staff/${widget.staff['user_id']}'));
+      // 4. API CONSTANTS İLE SİLME İSTEĞİNİ DEĞİŞTİRDİK
+      final response = await http.delete(Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'));
+      
       if (response.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Personel başarıyla sistemden silindi."), backgroundColor: Colors.red));

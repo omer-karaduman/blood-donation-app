@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../../models/institution.dart';
 import 'staff_settings_screen.dart';
+import '../../constants/api_constants.dart';
 
 class StaffManagementScreen extends StatefulWidget {
   const StaffManagementScreen({super.key});
@@ -31,15 +32,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
   ];
 
-  String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    } catch (e) {
-      return 'http://localhost:8000';
-    }
-    return 'http://localhost:8000';
-  }
 
   @override
   void initState() {
@@ -56,8 +48,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
   Future<void> _fetchData() async {
     setState(() => isLoading = true);
     try {
-      final staffResponse = await http.get(Uri.parse('$baseUrl/staff/'));
-      final instResponse = await http.get(Uri.parse('$baseUrl/institutions/'));
+      final staffResponse = await http.get(Uri.parse(ApiConstants.staffEndpoint));
+      final instResponse = await http.get(Uri.parse(ApiConstants.institutionsEndpoint));
 
       if (staffResponse.statusCode == 200 && instResponse.statusCode == 200) {
         setState(() {
@@ -465,10 +457,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             };
 
                             final response = await http.post(
-                              Uri.parse('$baseUrl/staff/'),
-                              headers: {"Content-Type": "application/json"},
-                              body: json.encode(body),
-                            );
+                                    Uri.parse(ApiConstants.staffEndpoint),
+                                    headers: {"Content-Type": "application/json"},
+                                    body: json.encode(body),
+                                  );
 
                             if (response.statusCode == 200) {
                               Navigator.pop(context);

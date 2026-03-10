@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
+import '../constants/api_constants.dart'; 
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -18,7 +20,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String _selectedBloodType = 'A+';
 
   Future<void> _register() async {
-    const String apiUrl = 'http://localhost:8000/register/donor/';
+    // 2. LOCALHOST YERİNE API CONSTANTS KULLANDIK
+    final String apiUrl = '${ApiConstants.baseUrl}/register/donor/';
 
     final response = await http.post(
       Uri.parse(apiUrl),
@@ -43,7 +46,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       Navigator.pop(context); // Kayıttan sonra geri dön
     } else {
-      print(response.body);
+      // Hata durumunu konsola yazdırıyoruz (İleride buraya da hata SnackBar'ı eklenebilir)
+      debugPrint("Kayıt Hatası: ${response.statusCode}");
+      debugPrint(response.body);
     }
   }
 

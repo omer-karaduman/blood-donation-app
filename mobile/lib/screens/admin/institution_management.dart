@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
 import '../../models/institution.dart'; 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'institution_detail_screen.dart';
+
+// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
+import '../../constants/api_constants.dart';
 
 class InstitutionManagementScreen extends StatefulWidget {
   const InstitutionManagementScreen({super.key});
@@ -45,15 +46,7 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     super.dispose();
   }
 
-  String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000'; 
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    } catch (e) {
-      return 'http://localhost:8000';
-    }
-    return 'http://localhost:8000';
-  }
+  // 2. ESKİ 'baseUrl' FONKSİYONUNU TAMAMEN SİLDİK
 
   void _refreshData() {
     setState(() {
@@ -67,7 +60,9 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     if (selectedType != "Tümü") queryParams.add('tipi=$selectedType');
 
     String queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
-    String url = '$baseUrl/institutions/$queryString';
+    
+    // 3. API CONSTANTS KULLANARAK İSTEĞİ GÜNCELLEDİK
+    String url = '${ApiConstants.institutionsEndpoint}$queryString';
 
     try {
       final response = await http.get(Uri.parse(url));
@@ -133,7 +128,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                 final String districtQuery = _normalizeTr(_districtSearchController.text);
 
                 final List<Institution> processedData = allData.where((inst) {
-                  // Hem aranan kelimeyi hem de kurum adını Türkçe kurallarına göre küçültüyoruz
                   final bool matchesName = _normalizeTr(inst.ad).contains(nameQuery);
                   final bool matchesDistrict = _normalizeTr(inst.ilce).contains(districtQuery);
                   return matchesName && matchesDistrict;
@@ -311,7 +305,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
         trailing: const Icon(Icons.settings_outlined, size: 20, color: Colors.grey),
-        onTap: () {Navigator.push(
+        onTap: () {
+          Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => InstitutionDetailScreen(institution: inst),

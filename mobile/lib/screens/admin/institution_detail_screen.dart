@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../../models/institution.dart';
-import 'staff_settings_screen.dart'; // YENİ: Ayarlar sayfasına geçiş için
+import 'staff_settings_screen.dart'; 
+// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
+import '../../constants/api_constants.dart'; 
 
 class InstitutionDetailScreen extends StatefulWidget {
   final Institution institution;
@@ -18,18 +18,10 @@ class InstitutionDetailScreen extends StatefulWidget {
 
 class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
   List<dynamic> staffList = [];
-  List<Institution> allInstitutions = []; // YENİ: Ayarlar sayfasına göndermek için
+  List<Institution> allInstitutions = []; 
   bool isLoading = true;
 
-  String get baseUrl {
-    if (kIsWeb) return 'http://localhost:8000';
-    try {
-      if (Platform.isAndroid) return 'http://10.0.2.2:8000';
-    } catch (e) {
-      return 'http://localhost:8000';
-    }
-    return 'http://localhost:8000';
-  }
+  // 2. ESKİ 'baseUrl' FONKSİYONUNU TAMAMEN SİLDİK
 
   @override
   void initState() {
@@ -41,10 +33,10 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
   Future<void> _fetchData() async {
     setState(() => isLoading = true);
     try {
-      // 1. Bu kuruma ait personelleri çek
-      final staffResponse = await http.get(Uri.parse('$baseUrl/institutions/${widget.institution.id}/staff'));
-      // 2. Ayarlar sayfasında kurum değişikliği yapılabilmesi için tüm kurumları da çek
-      final instResponse = await http.get(Uri.parse('$baseUrl/institutions/'));
+      // 3. API CONSTANTS KULLANARAK İSTEKLERİ GÜNCELLEDİK
+      // Not: kurum id'si url'in arasına girdiği için birleştirme yapıyoruz.
+      final staffResponse = await http.get(Uri.parse('${ApiConstants.institutionsEndpoint}${widget.institution.id}/staff'));
+      final instResponse = await http.get(Uri.parse(ApiConstants.institutionsEndpoint));
 
       if (staffResponse.statusCode == 200 && instResponse.statusCode == 200) {
         setState(() {
@@ -114,7 +106,7 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                     Text("Bu kuruma yetkili bir sağlık personeli hesabı oluşturun.", style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
                     const SizedBox(height: 25),
 
-                    // İSİM (Sadece Harf Korumalı)
+                    // İSİM
                     _buildModernTextField(
                       nameCtrl, "Ad Soyad", Icons.person_outline, 
                       formatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))],
@@ -208,10 +200,8 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         onPressed: isSubmitting ? null : () async {
-                          // Hataları temizle
                           setModalState(() => formErrorMessage = null);
 
-                          // Doğrulamalar (Validation)
                           if (nameCtrl.text.isEmpty || emailCtrl.text.isEmpty || passwordCtrl.text.isEmpty) {
                             setModalState(() => formErrorMessage = "Lütfen Ad Soyad, E-posta ve Şifre alanlarını boş bırakmayınız.");
                             return;
@@ -226,7 +216,6 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                             return;
                           }
 
-                          // Yükleniyor durumuna geç
                           setModalState(() => isSubmitting = true);
 
                           try {
@@ -234,20 +223,21 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                               "email": emailCtrl.text.trim(),
                               "password": passwordCtrl.text.trim(),
                               "ad_soyad": nameCtrl.text.trim(),
-                              "kurum_id": widget.institution.id, // Bu sayfada kurum zaten belli!
+                              "kurum_id": widget.institution.id, 
                               "unvan": finalTitle,
                               "personel_no": "P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}"
                             };
 
+                            // 4. PERSONEL KAYDETME İSTEĞİNİ GÜNCELLEDİK
                             final response = await http.post(
-                              Uri.parse('$baseUrl/staff/'),
+                              Uri.parse(ApiConstants.staffEndpoint),
                               headers: {"Content-Type": "application/json"},
                               body: json.encode(body),
                             );
 
                             if (response.statusCode == 200) {
                               Navigator.pop(context);
-                              _fetchData(); // Listeyi yenile
+                              _fetchData(); 
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Personel başarıyla atandı!"), backgroundColor: Colors.green.shade600));
                             } else {
                               String errorDetail = "Bir hata oluştu (${response.statusCode})";
@@ -449,7 +439,6 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                                     ],
                                   ),
                                 ),
-                                // YENİ: TIKLAYINCA AYARLAR SAYFASINA GİT
                                 trailing: IconButton(
                                   icon: const Icon(Icons.more_vert, color: Colors.grey),
                                   onPressed: () async {
@@ -458,12 +447,10 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                                       MaterialPageRoute(
                                         builder: (context) => StaffSettingsScreen(
                                           staff: staff, 
-                                          // Ayarlar ekranında kurum listesi istendiği için burada çektiğimiz allInstitutions'ı gönderiyoruz
                                           allInstitutions: allInstitutions, 
                                         ),
                                       ),
                                     );
-                                    // Eğer ayarlardan true dönerse listeyi tazele
                                     if (result == true) {
                                       _fetchData();
                                     }
