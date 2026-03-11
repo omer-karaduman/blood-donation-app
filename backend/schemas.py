@@ -8,7 +8,8 @@ from models import (
     BloodTypeEnum, 
     UrgencyEnum, 
     RequestStatusEnum, 
-    NotificationReactionEnum
+    NotificationReactionEnum,
+    InstitutionTypeEnum
 )
 
 # --- TEMEL AUTH ŞEMALARI ---
@@ -116,4 +117,17 @@ class AdminRequestLogResponse(BaseModel):
     istenen_kan_grubu: BloodTypeEnum
     # ML modelinin önerdiği donör sayısı ve başarı durumu
     onerilen_donor_sayisi: int
+    model_config = ConfigDict(from_attributes=True)
+
+
+
+class InstitutionCreate(BaseModel):
+    kurum_adi: str
+    tipi: InstitutionTypeEnum
+    ilce: str
+    tam_adres: str
+    latitude: float  # Verideki ENLEM
+    longitude: float # Verideki BOYLAM
+    parent_id: Optional[UUID] = None
+
     model_config = ConfigDict(from_attributes=True)

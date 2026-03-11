@@ -1,8 +1,10 @@
+// mobile/lib/screens/register_screen.dart
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
-import '../constants/api_constants.dart'; 
+import '../constants/api_constants.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -12,75 +14,466 @@ class RegisterScreen extends StatefulWidget {
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Form kontrolleri
+  int _currentStep = 0;
+  bool _isLoading = false;
+
+  // --- FORM KEY'LERİ ---
+  final _formKey1 = GlobalKey<FormState>();
+  final _formKey2 = GlobalKey<FormState>();
+  final _formKey3 = GlobalKey<FormState>();
+
+  // --- ADIM 1: KİMLİK BİLGİLERİ ---
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _nameController = TextEditingController();
+  final _birthDateController = TextEditingController(); // YENİ: Doğum Tarihi
+
+  // --- ADIM 2: İLETİŞİM VE KONUM ---
   final _phoneController = TextEditingController();
-  String _selectedBloodType = 'A+';
+  final _addressController = TextEditingController();
+  String? _selectedDistrict;
+  
+  final List<String> izmirDistricts = [
+    "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", 
+    "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir", 
+    "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa", 
+    "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", 
+    "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
+  ];
 
-  Future<void> _register() async {
-    // 2. LOCALHOST YERİNE API CONSTANTS KULLANDIK
-    final String apiUrl = '${ApiConstants.baseUrl}/register/donor/';
+  // --- ADIM 3: SAĞLIK BİLGİLERİ ---
+  String? _selectedBloodType;
+  String? _selectedGender; // Backend'e 'E' veya 'K' gidecek
+  final _weightController = TextEditingController(); // YENİ: Kilo bilgisi
 
-    final response = await http.post(
-      Uri.parse(apiUrl),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
-        'email': _emailController.text,
-        'password': _passwordController.text,
-        'ad_soyad': _nameController.text,
-        'telefon': _phoneController.text,
-        'cinsiyet': 'E', // Şimdilik sabit, Melih buraya seçim ekleyebilir
-        'dogum_tarihi': '1998-05-15', // Sabit test verisi
-        'kilo': 75.0,
-        'kan_grubu': _selectedBloodType,
-        'latitude': 38.42,
-        'longitude': 27.14,
-      }),
+  final List<String> bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    _birthDateController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  // YENİ: Takvimden Doğum Tarihi Seçme Fonksiyonu
+  Future<void> _selectBirthDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime(2000), // Varsayılan açılış yılı
+      firstDate: DateTime(1950), // En eski tarih
+      lastDate: DateTime.now().subtract(const Duration(days: 6570)), // En az 18 yaşında olmalı kuralı (yaklaşık)
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFFE53935), 
+              onPrimary: Colors.white, 
+              onSurface: Color(0xFF263238), 
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
-    if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kayıt Başarılı! Artık bir kahramansın.')),
-      );
-      Navigator.pop(context); // Kayıttan sonra geri dön
-    } else {
-      // Hata durumunu konsola yazdırıyoruz (İleride buraya da hata SnackBar'ı eklenebilir)
-      debugPrint("Kayıt Hatası: ${response.statusCode}");
-      debugPrint(response.body);
+    if (picked != null) {
+      setState(() {
+        // Backend için YYYY-MM-DD formatına çeviriyoruz
+        _birthDateController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
     }
+  }
+
+  void _nextStep() {
+    if (_currentStep == 0) {
+      if (_formKey1.currentState!.validate()) setState(() => _currentStep++);
+    } 
+    else if (_currentStep == 1) {
+      if (_formKey2.currentState!.validate()) setState(() => _currentStep++);
+    }
+  }
+
+  void _previousStep() {
+    if (_currentStep > 0) setState(() => _currentStep--);
+  }
+
+  Future<void> _submitRegistration() async {
+    if (!_formKey3.currentState!.validate()) return;
+    if (_selectedBloodType == null || _selectedGender == null) {
+      _showError("Lütfen kan grubu ve cinsiyet seçiniz.");
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final body = {
+        "ad_soyad": _nameController.text.trim(),
+        "email": _emailController.text.trim(),
+        "password": _passwordController.text.trim(),
+        "dogum_tarihi": _birthDateController.text.trim(), // EKLENDİ
+        "telefon": _phoneController.text.trim(),
+        "il": "İzmir",
+        "ilce": _selectedDistrict, 
+        "tam_adres": _addressController.text.trim(),
+        "kan_grubu": _selectedBloodType,
+        "cinsiyet": _selectedGender, // 'E' veya 'K' olarak gidecek
+        "kilo": double.tryParse(_weightController.text.trim()) ?? 0.0, // EKLENDİ
+      };
+
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/register/donor/'), 
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(body),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Kayıt başarılı! Giriş yapabilirsiniz."), backgroundColor: Colors.green),
+        );
+        Navigator.pop(context); 
+      } else {
+        String errorMsg = "Kayıt başarısız oldu (${response.statusCode}).";
+        try {
+          final errData = json.decode(utf8.decode(response.bodyBytes));
+          if (errData['detail'] != null) {
+            if (errData['detail'] is List) {
+              List<String> errorDetails = [];
+              for (var err in errData['detail']) {
+                String fieldName = (err['loc'] != null && err['loc'].length > 1) 
+                    ? err['loc'].last.toString() 
+                    : "Alan";
+                String msg = err['msg'] ?? "Hatalı format";
+                errorDetails.add("• $fieldName: $msg");
+              }
+              errorMsg = "Lütfen şu alanları düzeltin:\n" + errorDetails.join("\n");
+            } else {
+              errorMsg = errData['detail'].toString(); 
+            }
+          }
+        } catch(e) {}
+        
+        _showError(errorMsg);
+      }
+    } catch (e) {
+      _showError("Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.");
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showError(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red.shade700, 
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Donör Ol')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Ad Soyad')),
-              TextField(controller: _emailController, decoration: const InputDecoration(labelText: 'E-posta')),
-              TextField(controller: _passwordController, decoration: const InputDecoration(labelText: 'Şifre'), obscureText: true),
-              TextField(controller: _phoneController, decoration: const InputDecoration(labelText: 'Telefon')),
-              DropdownButtonFormField<String>(
-                value: _selectedBloodType,
-                items: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((String type) {
-                  return DropdownMenuItem(value: type, child: Text(type));
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedBloodType = val!),
-                decoration: const InputDecoration(labelText: 'Kan Grubu'),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF263238)),
+          onPressed: () {
+            if (_currentStep == 0) {
+              Navigator.pop(context);
+            } else {
+              _previousStep();
+            }
+          },
+        ),
+        title: const Text("Donör Kaydı", style: TextStyle(color: Color(0xFF263238), fontWeight: FontWeight.bold, fontSize: 18)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            _buildCustomStepper(),
+            const SizedBox(height: 30),
+            Expanded(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: _buildCurrentStepContent(),
               ),
-              const SizedBox(height: 30),
-              ElevatedButton(
-                onPressed: _register,
-                style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 50)),
-                child: const Text('Kayıt Ol'),
-              ),
-            ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCustomStepper() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Row(
+        children: [
+          _buildStepCircle(0, Icons.person_outline, "Kimlik"),
+          _buildStepLine(0),
+          _buildStepCircle(1, Icons.location_on_outlined, "İletişim"),
+          _buildStepLine(1),
+          _buildStepCircle(2, Icons.favorite_border, "Sağlık"),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStepCircle(int index, IconData icon, String label) {
+    bool isActive = _currentStep >= index;
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: 45,
+          height: 45,
+          decoration: BoxDecoration(
+            color: isActive ? const Color(0xFFE53935) : Colors.grey.shade200,
+            shape: BoxShape.circle,
+            boxShadow: isActive ? [BoxShadow(color: const Color(0xFFE53935).withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : [],
           ),
+          child: Icon(icon, color: isActive ? Colors.white : Colors.grey.shade500, size: 22),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: TextStyle(fontSize: 11, fontWeight: isActive ? FontWeight.bold : FontWeight.normal, color: isActive ? const Color(0xFFE53935) : Colors.grey)),
+      ],
+    );
+  }
+
+  Widget _buildStepLine(int index) {
+    bool isActive = _currentStep > index;
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        height: 3,
+        color: isActive ? const Color(0xFFE53935) : Colors.grey.shade200,
+      ),
+    );
+  }
+
+  Widget _buildCurrentStepContent() {
+    switch (_currentStep) {
+      case 0: return _buildStep1();
+      case 1: return _buildStep2();
+      case 2: return _buildStep3();
+      default: return const SizedBox();
+    }
+  }
+
+  // --- ADIM 1: KİMLİK BİLGİLERİ FORM ---
+  Widget _buildStep1() {
+    return SingleChildScrollView(
+      key: const ValueKey(0),
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Form(
+        key: _formKey1,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Hesap Bilgileri", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+            const SizedBox(height: 5),
+            const Text("Sisteme giriş yapmak için gerekli bilgileriniz.", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+
+            TextFormField(
+              controller: _nameController,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))],
+              validator: (value) => value!.trim().length < 3 ? "Lütfen geçerli bir Ad Soyad girin" : null,
+              decoration: const InputDecoration(labelText: "Ad Soyad", prefixIcon: Icon(Icons.badge_outlined)),
+            ),
+            const SizedBox(height: 20),
+
+            // YENİ: DOĞUM TARİHİ ALANI
+            TextFormField(
+              controller: _birthDateController,
+              readOnly: true, // Klavyeyi açmaz, takvim fonksiyonunu tetikler
+              onTap: () => _selectBirthDate(context),
+              validator: (value) => value!.isEmpty ? "Doğum tarihi zorunludur" : null,
+              decoration: const InputDecoration(
+                labelText: "Doğum Tarihi", 
+                prefixIcon: Icon(Icons.calendar_month_outlined),
+                hintText: "YYYY-AA-GG",
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            TextFormField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              validator: (value) {
+                if (value!.isEmpty) return "E-posta boş bırakılamaz";
+                if (!RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value)) {
+                  return "Lütfen geçerli bir e-posta adresi girin";
+                }
+                return null;
+              },
+              decoration: const InputDecoration(labelText: "E-posta Adresi", prefixIcon: Icon(Icons.email_outlined)),
+            ),
+            const SizedBox(height: 20),
+
+            TextFormField(
+              controller: _passwordController,
+              obscureText: true,
+              validator: (value) => value!.length < 6 ? "Şifre en az 6 karakter olmalıdır" : null,
+              decoration: const InputDecoration(labelText: "Şifre Belirleyin", prefixIcon: Icon(Icons.lock_outline)),
+            ),
+            const SizedBox(height: 40),
+
+            ElevatedButton(onPressed: _nextStep, child: const Text("Devam Et (İletişim)")),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- ADIM 2: İLETİŞİM BİLGİLERİ FORM ---
+  Widget _buildStep2() {
+    return SingleChildScrollView(
+      key: const ValueKey(1),
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Form(
+        key: _formKey2,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("İletişim & Konum", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+            const SizedBox(height: 5),
+            const Text("Acil kan ihtiyaçlarında size ulaşabilmemiz için.", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
+              validator: (value) => value!.length < 10 ? "Geçerli bir telefon numarası girin (Örn: 05...)" : null,
+              decoration: const InputDecoration(labelText: "Cep Telefonu", prefixIcon: Icon(Icons.phone_outlined)),
+            ),
+            const SizedBox(height: 20),
+
+            DropdownButtonFormField<String>(
+              value: _selectedDistrict,
+              validator: (value) => value == null ? "Lütfen yaşadığınız ilçeyi seçin" : null,
+              decoration: const InputDecoration(
+                labelText: "İlçe", 
+                prefixIcon: Icon(Icons.location_city_outlined)
+              ),
+              items: izmirDistricts.map((district) {
+                return DropdownMenuItem(value: district, child: Text(district));
+              }).toList(),
+              onChanged: (val) => setState(() => _selectedDistrict = val),
+            ),
+            const SizedBox(height: 20),
+
+            TextFormField(
+              controller: _addressController,
+              maxLines: 3,
+              validator: (value) => value!.length < 10 ? "Lütfen detaylı bir açık adres girin" : null,
+              decoration: const InputDecoration(
+                labelText: "Açık Adres",
+                alignLabelWithHint: true,
+                prefixIcon: Padding(padding: EdgeInsets.only(bottom: 45), child: Icon(Icons.home_outlined)),
+              ),
+            ),
+            const SizedBox(height: 40),
+
+            Row(
+              children: [
+                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
+                const SizedBox(width: 15),
+                Expanded(flex: 2, child: ElevatedButton(onPressed: _nextStep, child: const Text("Devam Et (Sağlık)"))),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- ADIM 3: SAĞLIK BİLGİLERİ FORM ---
+  Widget _buildStep3() {
+    return SingleChildScrollView(
+      key: const ValueKey(2),
+      padding: const EdgeInsets.symmetric(horizontal: 30),
+      child: Form(
+        key: _formKey3,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Sağlık Bilgileri", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+            const SizedBox(height: 5),
+            const Text("Doğru eşleşmeler için temel sağlık verileriniz.", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+
+            DropdownButtonFormField<String>(
+              value: _selectedBloodType,
+              validator: (value) => value == null ? "Kan grubu zorunludur" : null,
+              decoration: const InputDecoration(labelText: "Kan Grubunuz", prefixIcon: Icon(Icons.bloodtype_outlined, color: Color(0xFFE53935))),
+              items: bloodTypes.map((type) => DropdownMenuItem(value: type, child: Text(type, style: const TextStyle(fontWeight: FontWeight.bold)))).toList(),
+              onChanged: (val) => setState(() => _selectedBloodType = val),
+            ),
+            const SizedBox(height: 20),
+
+            // DÜZELTİLDİ: Cinsiyet dropdown'u (Value = E/K, Metin = Erkek/Kadın)
+            DropdownButtonFormField<String>(
+              value: _selectedGender,
+              validator: (value) => value == null ? "Cinsiyet seçimi zorunludur" : null,
+              decoration: const InputDecoration(labelText: "Cinsiyetiniz", prefixIcon: Icon(Icons.transgender_outlined)),
+              items: const [
+                DropdownMenuItem(value: 'E', child: Text('Erkek')),
+                DropdownMenuItem(value: 'K', child: Text('Kadın')),
+              ],
+              onChanged: (val) => setState(() => _selectedGender = val),
+            ),
+            const SizedBox(height: 20),
+
+            // YENİ: KİLO BİLGİSİ GİRİŞİ (Kan bağışı için 50kg sınırı var)
+            TextFormField(
+              controller: _weightController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)],
+              validator: (value) {
+                if (value == null || value.isEmpty) return "Kilo zorunludur";
+                int? weight = int.tryParse(value);
+                if (weight == null || weight < 50) return "Kan bağışı için en az 50 kg olmalısınız";
+                return null;
+              },
+              decoration: const InputDecoration(labelText: "Kilonuz (kg)", prefixIcon: Icon(Icons.monitor_weight_outlined)),
+            ),
+            const SizedBox(height: 40),
+
+            Row(
+              children: [
+                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
+                const SizedBox(width: 15),
+                Expanded(
+                  flex: 2, 
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _submitRegistration, 
+                    child: _isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Kayıt Ol")
+                  )
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

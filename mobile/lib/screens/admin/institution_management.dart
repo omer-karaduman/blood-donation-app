@@ -1,10 +1,10 @@
+// mobile/lib/screens/admin/institution_management.dart
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../models/institution.dart'; 
 import 'institution_detail_screen.dart';
-
-// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
 import '../../constants/api_constants.dart';
 
 class InstitutionManagementScreen extends StatefulWidget {
@@ -18,11 +18,9 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
   String selectedDistrict = "Tümü";
   String selectedType = "Tümü";
 
-  // --- ARAMA ÇUBUĞU KONTROLCÜLERİ ---
+  // --- KONTROLCÜLER ---
   final TextEditingController _nameSearchController = TextEditingController();
   final TextEditingController _districtSearchController = TextEditingController();
-
-  // --- API İSTEKLERİNİ KONTROL ETMEK İÇİN FUTURE DEĞİŞKENİ ---
   late Future<List<Institution>> _institutionsFuture;
 
   final List<String> districts = [
@@ -46,8 +44,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     super.dispose();
   }
 
-  // 2. ESKİ 'baseUrl' FONKSİYONUNU TAMAMEN SİLDİK
-
   void _refreshData() {
     setState(() {
       _institutionsFuture = fetchInstitutions();
@@ -60,8 +56,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     if (selectedType != "Tümü") queryParams.add('tipi=$selectedType');
 
     String queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
-    
-    // 3. API CONSTANTS KULLANARAK İSTEĞİ GÜNCELLEDİK
     String url = '${ApiConstants.institutionsEndpoint}$queryString';
 
     try {
@@ -70,13 +64,12 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         final List<dynamic> jsonData = json.decode(utf8.decode(response.bodyBytes));
         return jsonData.map((data) => Institution.fromJson(data)).toList();
       }
-      throw Exception('Sunucu Hatası');
+      throw Exception('Veriler yüklenemedi');
     } catch (e) {
       throw Exception('Bağlantı Hatası: $e');
     }
   }
 
-  // --- TÜRKÇE KARAKTER DUYARLI KÜÇÜLTME FONKSİYONU ---
   String _normalizeTr(String text) {
     return text
         .replaceAll('I', 'ı')
@@ -89,18 +82,86 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         .toLowerCase();
   }
 
+  // --- YENİ KURUM EKLEME MODAL FORMU ---
+  void _showAddInstitutionForm() {
+    final nameCtrl = TextEditingController();
+    final addrCtrl = TextEditingController();
+    String type = "Hastane";
+    String dist = districts[1]; // Varsayılan ilk ilçe
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          left: 24, right: 24, top: 20,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+              const SizedBox(height: 20),
+              const Text("Yeni Kurum Kaydı", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 25),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Kurum Adı", prefixIcon: Icon(Icons.business))),
+              const SizedBox(height: 15),
+              TextField(controller: addrCtrl, decoration: const InputDecoration(labelText: "Tam Adres", prefixIcon: Icon(Icons.map))),
+              const SizedBox(height: 15),
+              DropdownButtonFormField<String>(
+                value: type,
+                items: ["Hastane", "Kan Merkezi"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                onChanged: (v) => type = v!,
+                decoration: const InputDecoration(labelText: "Kurum Tipi"),
+              ),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF263238), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                  onPressed: () {
+                    // Backend POST işlemi buraya gelecek
+                    Navigator.pop(context);
+                    _refreshData();
+                  },
+                  child: const Text("Kaydet", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddInstitutionForm,
+        backgroundColor: const Color(0xFF263238),
+        icon: const Icon(Icons.add_business_rounded, color: Colors.white),
+        label: const Text("Yeni Kurum", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
       body: RefreshIndicator(
         onRefresh: () async => _refreshData(), 
         child: CustomScrollView(
           slivers: [
             SliverAppBar.medium(
-              title: const Text("Hiyerarşik Kurum Yönetimi", style: TextStyle(fontWeight: FontWeight.bold)),
+              title: const Text("Kurum Yönetimi", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF263238))),
               backgroundColor: Colors.white,
               surfaceTintColor: Colors.transparent,
+              actions: [
+                IconButton(onPressed: _refreshData, icon: const Icon(Icons.sync_rounded, color: Colors.grey)),
+              ],
             ),
             SliverToBoxAdapter(
               child: Column(
@@ -122,8 +183,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                 }
 
                 final List<Institution> allData = snapshot.data ?? [];
-
-                // --- TEXT ARAMA FİLTRESİ (TÜRKÇE DESTEKLİ) ---
                 final String nameQuery = _normalizeTr(_nameSearchController.text);
                 final String districtQuery = _normalizeTr(_districtSearchController.text);
 
@@ -133,25 +192,17 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                   return matchesName && matchesDistrict;
                 }).toList();
 
-                // 1. Önce 'Parent' olanları bul
-                final List<Institution> rootInstitutions = processedData.where((inst) => 
-                  inst.parentId == null
-                ).toList();
-
-                // 2. 'Child' olanları ayır
-                final List<Institution> subInstitutions = processedData.where((inst) => 
-                  inst.parentId != null
-                ).toList();
-
-                // --- YETİM ÇOCUKLAR (ORPHAN) MANTIĞI ---
+                // Hiyerarşi Mantığı
+                final List<Institution> rootInstitutions = processedData.where((inst) => inst.parentId == null).toList();
+                final List<Institution> subInstitutions = processedData.where((inst) => inst.parentId != null).toList();
+                
+                // Yetim çocukları (parent'ı filtreye takılmış olanlar) root'a ekle
                 final List<Institution> orphanInstitutions = subInstitutions.where((child) => 
                   !rootInstitutions.any((parent) => parent.id == child.parentId)
                 ).toList();
-
                 rootInstitutions.addAll(orphanInstitutions);
-                // ------------------------------------------------
 
-                if (rootInstitutions.isEmpty && subInstitutions.isEmpty) {
+                if (rootInstitutions.isEmpty) {
                   return const SliverFillRemaining(child: Center(child: Text("Kayıt bulunamadı.")));
                 }
 
@@ -161,12 +212,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final parent = rootInstitutions[index];
-                        
-                        final childrenOfThisParent = subInstitutions.where((child) => 
-                          child.parentId == parent.id
-                        ).toList();
-
-                        return _buildHierarchyGroup(context, parent, childrenOfThisParent);
+                        final children = subInstitutions.where((child) => child.parentId == parent.id).toList();
+                        return _buildHierarchyGroup(context, parent, children);
                       },
                       childCount: rootInstitutions.length,
                     ),
@@ -187,62 +234,31 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         children: [
           Expanded(
             flex: 3,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)
-                ],
-              ),
-              child: TextField(
-                controller: _nameSearchController,
-                onChanged: (value) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: "Kurum Ara...",
-                  hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                  prefixIcon: const Icon(Icons.search, size: 18, color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.transparent,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
+            child: _buildSingleSearchField(_nameSearchController, "Kurum Ara...", Icons.search),
           ),
           const SizedBox(width: 10),
           Expanded(
             flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)
-                ],
-              ),
-              child: TextField(
-                controller: _districtSearchController,
-                onChanged: (value) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText: "İlçe Ara...",
-                  hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-                  prefixIcon: const Icon(Icons.location_city, size: 18, color: Colors.grey),
-                  filled: true,
-                  fillColor: Colors.transparent,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-            ),
+            child: _buildSingleSearchField(_districtSearchController, "İlçe Ara...", Icons.location_city),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSingleSearchField(TextEditingController controller, String hint, IconData icon) {
+    return Container(
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 5)]),
+      child: TextField(
+        controller: controller,
+        onChanged: (value) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+          prefixIcon: Icon(icon, size: 18, color: Colors.grey),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
       ),
     );
   }
@@ -268,7 +284,7 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
 
   Widget _buildInstitutionCard(BuildContext context, Institution inst, {required bool isChild}) {
     bool isBloodBank = inst.tipi == "Kan Merkezi";
-    Color themeColor = isBloodBank ? Colors.red : Colors.blue;
+    Color themeColor = isBloodBank ? const Color(0xFFE53935) : const Color(0xFF1E88E5);
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: isChild ? 0 : 20, vertical: 4),
@@ -276,9 +292,7 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         color: isChild ? Colors.grey.shade50 : Colors.white,
         borderRadius: BorderRadius.circular(isChild ? 16 : 24),
         border: isChild ? Border.all(color: Colors.grey.shade200) : null,
-        boxShadow: isChild ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))
-        ],
+        boxShadow: isChild ? [] : [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -287,32 +301,13 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           backgroundColor: themeColor.withOpacity(0.1),
           child: Icon(
             isChild ? Icons.subdirectory_arrow_right_rounded : (isBloodBank ? Icons.bloodtype : Icons.local_hospital),
-            color: themeColor,
-            size: isChild ? 18 : 24,
+            color: themeColor, size: isChild ? 18 : 24,
           ),
         ),
-        title: Text(
-          inst.ad,
-          style: TextStyle(
-            fontWeight: isChild ? FontWeight.w500 : FontWeight.bold,
-            fontSize: isChild ? 13 : 15,
-          ),
-        ),
-        subtitle: Text(
-          "${inst.ilce} - ${inst.tamAdres}", 
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-        ),
+        title: Text(inst.ad, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.bold, fontSize: isChild ? 13 : 15)),
+        subtitle: Text("${inst.ilce} - ${inst.tamAdres}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         trailing: const Icon(Icons.settings_outlined, size: 20, color: Colors.grey),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => InstitutionDetailScreen(institution: inst),
-            ),
-          );
-        },
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => InstitutionDetailScreen(institution: inst))),
       ),
     );
   }
@@ -322,23 +317,14 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
-        ),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: selectedDistrict,
             isExpanded: true,
             icon: const Icon(Icons.location_on_outlined, color: Colors.red),
             items: districts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-            onChanged: (val) {
-              if (val != null) {
-                selectedDistrict = val;
-                _refreshData();
-              }
-            },
+            onChanged: (val) { if (val != null) { selectedDistrict = val; _refreshData(); } },
           ),
         ),
       ),
@@ -354,19 +340,11 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           segments: const [
             ButtonSegment(value: "Tümü", label: Text("Tümü"), icon: Icon(Icons.all_inclusive)),
             ButtonSegment(value: "Hastane", label: Text("Hastane"), icon: Icon(Icons.local_hospital)),
-            ButtonSegment(value: "Kan Merkezi", label: Text("Kan Merkezi"), icon: Icon(Icons.bloodtype)),
+            ButtonSegment(value: "Kan Merkezi", label: Text("Merkez"), icon: Icon(Icons.bloodtype)),
           ],
           selected: {selectedType},
-          onSelectionChanged: (newSelection) {
-            selectedType = newSelection.first;
-            _refreshData();
-          },
-          style: SegmentedButton.styleFrom(
-            backgroundColor: Colors.white,
-            selectedBackgroundColor: Colors.red.shade100,
-            selectedForegroundColor: Colors.red,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+          onSelectionChanged: (newSelection) { selectedType = newSelection.first; _refreshData(); },
+          style: SegmentedButton.styleFrom(backgroundColor: Colors.white, selectedBackgroundColor: Colors.red.shade50, selectedForegroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
       ),
     );

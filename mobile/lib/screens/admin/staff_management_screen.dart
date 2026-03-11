@@ -1,3 +1,5 @@
+// mobile/lib/screens/admin/staff_management_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -32,7 +34,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
   ];
 
-
   @override
   void initState() {
     super.initState();
@@ -59,9 +60,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
         });
       }
     } catch (e) {
-      debugPrint("Hata: $e");
+      debugPrint("Veri Çekme Hatası: $e");
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -232,7 +233,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
   }
 
-  // --- GÜNCELLENMİŞ PERSONEL EKLEME FORMU (INLINE HATA YÖNETİMİ) ---
   void _showAddStaffForm() {
     final TextEditingController nameCtrl = TextEditingController();
     final TextEditingController emailCtrl = TextEditingController();
@@ -243,7 +243,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     String selectedTitle = unvanListesi.first;
     Institution? formSelectedInstitution;
     
-    // YENİ: Hata mesajı ve yükleniyor state'leri
     String? formErrorMessage;
     bool isSubmitting = false;
 
@@ -284,12 +283,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
                     GestureDetector(
                       onTap: () {
-                        // Eğer form yükleniyorsa basmayı engelle
                         if(isSubmitting) return; 
                         _showInstitutionSearchDialog(formSelectedInstitution, (secilen) {
                           setModalState(() {
                             formSelectedInstitution = secilen;
-                            formErrorMessage = null; // Seçim yapılınca hatayı temizle
+                            formErrorMessage = null; 
                           });
                         }, isFilter: false);
                       },
@@ -299,7 +297,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           color: Colors.blue.shade50,
                           borderRadius: BorderRadius.circular(16),
                           border: Border.all(
-                            // Kurum seçilmediyse ve hata verildiyse kutuyu kırmızı yap
                             color: (formErrorMessage != null && formSelectedInstitution == null) 
                                    ? Colors.red.shade300 
                                    : (formSelectedInstitution != null ? Colors.blue.shade200 : Colors.transparent)
@@ -330,24 +327,11 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                     ),
                     const SizedBox(height: 15),
 
-                    _buildModernFormTextField(
-                      nameCtrl, "Ad Soyad", Icons.person_outline, 
-                      formatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))], 
-                      onChanged: (v) => setModalState(() => formErrorMessage = null),
-                      enabled: !isSubmitting
-                    ),
+                    _buildModernFormTextField(nameCtrl, "Ad Soyad", Icons.person_outline, formatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))], onChanged: (v) => setModalState(() => formErrorMessage = null), enabled: !isSubmitting),
                     const SizedBox(height: 15),
-                    _buildModernFormTextField(
-                      emailCtrl, "E-posta Adresi", Icons.email_outlined, 
-                      onChanged: (v) => setModalState(() => formErrorMessage = null),
-                      enabled: !isSubmitting
-                    ),
+                    _buildModernFormTextField(emailCtrl, "E-posta Adresi", Icons.email_outlined, onChanged: (v) => setModalState(() => formErrorMessage = null), enabled: !isSubmitting),
                     const SizedBox(height: 15),
-                    _buildModernFormTextField(
-                      passwordCtrl, "Geçici Şifre", Icons.lock_outline, isPassword: true, 
-                      onChanged: (v) => setModalState(() => formErrorMessage = null),
-                      enabled: !isSubmitting
-                    ),
+                    _buildModernFormTextField(passwordCtrl, "Geçici Şifre", Icons.lock_outline, isPassword: true, onChanged: (v) => setModalState(() => formErrorMessage = null), enabled: !isSubmitting),
                     const SizedBox(height: 15),
 
                     DropdownButtonFormField<String>(
@@ -373,41 +357,25 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
                     if (selectedTitle == "Diğer") ...[
                       const SizedBox(height: 15),
-                      _buildModernFormTextField(
-                        customTitleCtrl, "Lütfen ünvanı yazınız", Icons.edit_outlined, 
-                        onChanged: (v) => setModalState(() => formErrorMessage = null),
-                        enabled: !isSubmitting
-                      ),
+                      _buildModernFormTextField(customTitleCtrl, "Lütfen ünvanı yazınız", Icons.edit_outlined, onChanged: (v) => setModalState(() => formErrorMessage = null), enabled: !isSubmitting),
                     ],
                     
                     const SizedBox(height: 25),
 
-                    // --- YENİ: INLINE HATA GÖSTERGE ALANI ---
                     if (formErrorMessage != null)
                       Container(
                         margin: const EdgeInsets.only(bottom: 16),
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200)
-                        ),
+                        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
                         child: Row(
                           children: [
                             Icon(Icons.error_outline, color: Colors.red.shade700, size: 22),
                             const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                formErrorMessage!,
-                                style: TextStyle(color: Colors.red.shade800, fontSize: 13, fontWeight: FontWeight.w600),
-                              ),
-                            ),
+                            Expanded(child: Text(formErrorMessage!, style: TextStyle(color: Colors.red.shade800, fontSize: 13, fontWeight: FontWeight.w600))),
                           ],
                         ),
                       ),
 
-                    // KAYDET BUTONU
-// KAYDET BUTONU
                     SizedBox(
                       width: double.infinity,
                       height: 55,
@@ -419,10 +387,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                         onPressed: isSubmitting ? null : () async {
-                          // 1. Önceki hataları temizle
                           setModalState(() => formErrorMessage = null);
 
-                          // 2. DOĞRULAMALAR (VALIDATION - YENİ EKLENEN KISIM)
                           if (formSelectedInstitution == null) {
                             setModalState(() => formErrorMessage = "Lütfen görev yapılacak kurumu seçiniz.");
                             return;
@@ -431,7 +397,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             setModalState(() => formErrorMessage = "Lütfen Ad Soyad, E-posta ve Şifre alanlarını boş bırakmayınız.");
                             return;
                           }
-                          // ŞİFRE UZUNLUĞU KONTROLÜ (Ön tarafta anında yakalıyoruz)
                           if (passwordCtrl.text.length < 6) {
                             setModalState(() => formErrorMessage = "Şifre en az 6 karakter uzunluğunda olmalıdır.");
                             return;
@@ -443,7 +408,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             return;
                           }
 
-                          // 3. Yükleniyor durumuna geç
                           setModalState(() => isSubmitting = true);
 
                           try {
@@ -467,12 +431,10 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                               _fetchData(); 
                               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Personel başarıyla atandı!"), backgroundColor: Colors.green.shade600));
                             } else {
-                              // BACKEND'DEN GELEN 422 HATALARINI DAHA ŞIK YAKALAMA
                               String errorDetail = "Bir hata oluştu (${response.statusCode})";
                               try {
                                 final errJson = json.decode(utf8.decode(response.bodyBytes));
                                 if (errJson['detail'] != null) {
-                                  // FastAPI doğrulama hatalarını liste olarak (Array) gönderir
                                   if (errJson['detail'] is List) {
                                     errorDetail = "Girdiğiniz bilgilerden bazıları geçersiz. Lütfen formatları kontrol edin.";
                                   } else {
@@ -485,7 +447,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           } catch (e) {
                             setModalState(() => formErrorMessage = "Sunucuya bağlanılamadı. Lütfen bağlantınızı kontrol edin.");
                           } finally {
-                            // İşlem bitince yükleniyor durumunu kapat
                             setModalState(() => isSubmitting = false);
                           }
                         },
@@ -552,10 +513,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     final String nameQuery = _normalizeTr(_nameSearchController.text);
 
     final List<dynamic> processedStaffList = allStaffList.where((staff) {
-      final String staffName = _normalizeTr(staff['ad_soyad']);
-      final inst = allInstitutions.where((i) => i.id == staff['kurum_id']).firstOrNull;
+      // NULL GÜVENLİĞİ İLE DEĞİŞKENLERİ ALALIM
+      final String staffName = _normalizeTr(staff['ad_soyad'] ?? "");
+      final String? staffInstId = staff['kurum_id'];
+      
+      final inst = allInstitutions.where((i) => i.id == staffInstId).firstOrNull;
       final String staffDistrict = inst != null ? _normalizeTr(inst.ilce) : "";
-      final String staffInstId = staff['kurum_id'];
 
       final bool matchesName = staffName.contains(nameQuery);
       final bool matchesDistrict = _selectedFilterDistrict == null || staffDistrict == _normalizeTr(_selectedFilterDistrict!);
@@ -748,8 +711,16 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {
                             final staff = processedStaffList[index]; 
-                            bool isBloodBank = staff['kurum_tipi'] == "Kan Merkezi";
+                            
+                            // NULL GÜVENLİĞİ VE KURUM TİPİ BELİRLEME
+                            final inst = allInstitutions.where((i) => i.id == staff['kurum_id']).firstOrNull;
+                            bool isBloodBank = inst?.tipi == "Kan Merkezi";
                             Color themeColor = isBloodBank ? const Color(0xFFE53935) : const Color(0xFF1E88E5);
+                            
+                            String adSoyad = staff['ad_soyad'] ?? "Bilinmiyor";
+                            String kurumAdi = staff['kurum_adi'] ?? "Kurum Atanmamış";
+                            String unvan = staff['unvan'] ?? "Ünvan Yok";
+                            String email = staff['email'] ?? "E-posta Yok";
 
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -765,7 +736,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                   backgroundColor: themeColor.withOpacity(0.1),
                                   child: Icon(Icons.person, color: themeColor),
                                 ),
-                                title: Text(staff['ad_soyad'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50))),
+                                title: Text(adSoyad, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50))),
                                 subtitle: Padding(
                                   padding: const EdgeInsets.only(top: 6),
                                   child: Column(
@@ -779,7 +750,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                           children: [
                                             Icon(isBloodBank ? Icons.bloodtype : Icons.local_hospital, size: 12, color: themeColor),
                                             const SizedBox(width: 4),
-                                            Flexible(child: Text(staff['kurum_adi'], style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                                            Flexible(child: Text(kurumAdi, style: TextStyle(fontSize: 11, color: themeColor, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                                           ],
                                         ),
                                       ),
@@ -788,7 +759,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                         children: [
                                           Icon(Icons.badge_outlined, size: 14, color: Colors.grey.shade500),
                                           const SizedBox(width: 4),
-                                          Text(staff['unvan'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                          Text(unvan, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
                                         ],
                                       ),
                                     ],

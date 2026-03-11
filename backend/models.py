@@ -53,6 +53,10 @@ class NotificationReactionEnum(str, enum.Enum):
     RED = 'Red'
     GORMEZDEN_GELDI = 'Gormezden_Geldi'
 
+class InstitutionTypeEnum(str, enum.Enum):
+    HASTANE = 'Hastane'
+    KAN_MERKEZI = 'Kan Merkezi'
+
 # --- 2. ANA KULLANICI TABLOSU (AUTH & IDENTITY) ---
 class User(Base):
     __tablename__ = "users"
@@ -122,19 +126,31 @@ class Institution(Base):
     __tablename__ = "institutions"
     
     # 1. Kimlik ve Temel Bilgiler
+    # Not: Verinizdeki 'ID' alanı veritabanında 'kurum_id' UUID olarak eşleşir.
     kurum_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    
+    # Verideki 'ADI' alanı
     kurum_adi = Column(String, nullable=False, index=True)
-    tipi = Column(String, nullable=False) # 'Hastane' veya 'Kan Merkezi'
+    
+    # Verideki 'TIPI' alanı (Enum kullanımı veri güvenliğini artırır)
+    tipi = Column(SQLEnum(InstitutionTypeEnum), nullable=False) 
     
     # 2. Akıllı Hiyerarşi (Parent-Child)
+    # Verideki 'PARENT_ID' değeri bu kolona referans verir.
     parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
     
     # 3. Konum ve Adres Verisi
+    # Verideki 'ENLEM' ve 'BOYLAM' değerleri bu geometrik kolonda birleştirilir.
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
+    
+    # Verideki 'ILCE' alanı
     ilce = Column(String, nullable=False, index=True) 
+    
+    # Verideki 'TAM_ADRES' alanı
     tam_adres = Column(String, nullable=False) 
 
     # 4. İlişkiler (SQLAlchemy Magic)
+    # Bir kurumun altındaki ek hizmet binalarını (sub_units) otomatik getirir.
     sub_units = relationship(
         "Institution", 
         backref=backref('parent', remote_side=[kurum_id]),

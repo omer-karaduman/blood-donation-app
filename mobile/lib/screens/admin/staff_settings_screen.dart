@@ -1,10 +1,10 @@
+// mobile/lib/screens/admin/staff_settings_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import '../../models/institution.dart';
-
-// 1. SABİTLER DOSYASINI İÇERİ AKTARDIK
 import '../../constants/api_constants.dart';
 
 class StaffSettingsScreen extends StatefulWidget {
@@ -24,7 +24,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   late TextEditingController _customTitleCtrl;
   
   late bool _isActive;
-  late Institution _selectedInstitution;
+  Institution? _selectedInstitution; // Null safety için nullable yapıldı
   
   bool _isSubmitting = false;
   bool _isDeleting = false;
@@ -33,28 +33,26 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   final List<String> unvanListesi = ["Kan Merkezi Sorumlusu", "Başhekim", "Doktor", "Hemşire", "Laborant", "Diğer"];
   late String _selectedTitle;
 
-  // 2. ESKİ 'baseUrl' FONKSİYONUNU TAMAMEN SİLDİK
-
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.staff['ad_soyad']);
-    _emailCtrl = TextEditingController(text: widget.staff['email']);
+    _nameCtrl = TextEditingController(text: widget.staff['ad_soyad'] ?? "");
+    _emailCtrl = TextEditingController(text: widget.staff['email'] ?? "");
     _passwordCtrl = TextEditingController(); 
     _customTitleCtrl = TextEditingController();
 
     _isActive = widget.staff['is_active'] ?? true;
     
-    // Kurumu eşleştir
-    _selectedInstitution = widget.allInstitutions.firstWhere(
-      (inst) => inst.id.toString() == widget.staff['kurum_id'].toString(),
-      orElse: () => widget.allInstitutions.first,
-    );
+    // Kurumu eşleştir (Eğer backend'den null gelirse veya bulunamazsa null kalır)
+    final staffKurumId = widget.staff['kurum_id'];
+    _selectedInstitution = widget.allInstitutions.where(
+      (inst) => inst.id.toString() == staffKurumId?.toString()
+    ).firstOrNull;
 
     // Ünvanı eşleştir
     String currentTitle = widget.staff['unvan'] ?? "";
-    if (unvanListesi.contains(currentTitle)) {
-      _selectedTitle = currentTitle;
+    if (unvanListesi.contains(currentTitle) || currentTitle.isEmpty) {
+      _selectedTitle = currentTitle.isEmpty ? unvanListesi.first : currentTitle;
     } else {
       _selectedTitle = "Diğer";
       _customTitleCtrl.text = currentTitle;
@@ -121,7 +119,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                           itemCount: filteredList.length,
                           itemBuilder: (context, index) {
                             final inst = filteredList[index];
-                            bool isSelected = _selectedInstitution.id == inst.id;
+                            bool isSelected = _selectedInstitution?.id == inst.id;
                             return ListTile(
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               tileColor: isSelected ? Colors.blue.shade50 : null,
@@ -160,6 +158,11 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
       setState(() => _formErrorMessage = "Ad Soyad ve E-posta boş bırakılamaz.");
       return;
     }
+    
+    if (_selectedInstitution == null) {
+      setState(() => _formErrorMessage = "Lütfen görev yapılacak bir kurum seçiniz.");
+      return;
+    }
 
     String finalTitle = _selectedTitle == "Diğer" ? _customTitleCtrl.text.trim() : _selectedTitle;
     if (finalTitle.isEmpty) {
@@ -168,17 +171,28 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     }
 
     setState(() => _isSubmitting = true);
+    
     try {
       final body = {
         "ad_soyad": _nameCtrl.text.trim(),
         "email": _emailCtrl.text.trim(),
-        "password": _passwordCtrl.text.trim(), 
         "unvan": finalTitle,
-        "kurum_id": _selectedInstitution.id,
+        "kurum_id": _selectedInstitution!.id,
         "is_active": _isActive,
       };
 
-      // 3. API CONSTANTS İLE GÜNCELLEME İSTEĞİNİ DEĞİŞTİRDİK
+      // Sadece şifre girilmişse şifreyi güncelle (backend kabul ediyorsa)
+      if (_passwordCtrl.text.trim().isNotEmpty) {
+        if (_passwordCtrl.text.trim().length < 6) {
+          setState(() {
+            _formErrorMessage = "Şifre en az 6 karakter olmalıdır.";
+            _isSubmitting = false;
+          });
+          return;
+        }
+        body["password"] = _passwordCtrl.text.trim();
+      }
+
       final response = await http.put(
         Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'),
         headers: {"Content-Type": "application/json"},
@@ -194,7 +208,9 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         String errorDetail = "Güncelleme başarısız (${response.statusCode})";
         try {
           final errJson = json.decode(utf8.decode(response.bodyBytes));
-          if (errJson['detail'] != null) errorDetail = errJson['detail'];
+          if (errJson['detail'] != null) {
+            errorDetail = errJson['detail'] is List ? "Geçersiz format" : errJson['detail'];
+          }
         } catch(e) {}
         setState(() => _formErrorMessage = errorDetail);
       }
@@ -216,7 +232,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
             SizedBox(width: 10),
-            Text("Kalıcı Silme İşlemi", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            Text("Kalıcı Silme", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ],
         ),
         content: const Text("Bu personelin hesabı ve sistem erişimi tamamen kalıcı olarak silinecektir. Bu işlem geri alınamaz. Onaylıyor musunuz?", style: TextStyle(fontSize: 14)),
@@ -239,7 +255,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     });
 
     try {
-      // 4. API CONSTANTS İLE SİLME İSTEĞİNİ DEĞİŞTİRDİK
       final response = await http.delete(Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'));
       
       if (response.statusCode == 200) {
@@ -257,7 +272,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     }
   }
 
-  // --- MODERN TEXTFIELD MİMARİSİ (Hata temizleme ve kilitlenme destekli) ---
+  // --- MODERN TEXTFIELD MİMARİSİ ---
   Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {bool isPassword = false, List<TextInputFormatter>? formatters}) {
     return TextField(
       controller: controller,
@@ -321,7 +336,11 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.blue.shade200)
+                  border: Border.all(
+                    color: (_formErrorMessage != null && _selectedInstitution == null) 
+                        ? Colors.red.shade300 
+                        : Colors.blue.shade200
+                  )
                 ),
                 child: Row(
                   children: [
@@ -329,8 +348,14 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        "${_selectedInstitution.ad} (${_selectedInstitution.ilce})",
-                        style: TextStyle(color: Colors.blue.shade900, fontSize: 15, fontWeight: FontWeight.bold),
+                        _selectedInstitution != null 
+                            ? "${_selectedInstitution!.ad} (${_selectedInstitution!.ilce})" 
+                            : "Görev Yapacağı Kurumu Seç",
+                        style: TextStyle(
+                          color: _selectedInstitution != null ? Colors.blue.shade900 : Colors.grey.shade600, 
+                          fontSize: 15, 
+                          fontWeight: _selectedInstitution != null ? FontWeight.bold : FontWeight.normal
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -356,7 +381,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                   _buildModernTextField(_emailCtrl, "E-posta Adresi", Icons.email_outlined),
                   const SizedBox(height: 15),
                   
-                  _buildModernTextField(_passwordCtrl, "Yeni Şifre (Değiştirmek istemiyorsanız boş bırakın)", Icons.lock_outline, isPassword: true),
+                  _buildModernTextField(_passwordCtrl, "Yeni Şifre (Değiştirmeyecekseniz boş bırakın)", Icons.lock_outline, isPassword: true),
                   const SizedBox(height: 15),
 
                   DropdownButtonFormField<String>(

@@ -21,8 +21,7 @@ class Institution {
 
   factory Institution.fromJson(Map<String, dynamic> json) {
     return Institution(
-      // JSON'u doğrudan okuyorsanız büyük harfli, API'den alıyorsanız küçük harfli (snake_case) gelebilir.
-      // Her iki duruma da uyumlu olması için esnek bırakıyoruz:
+
       id: json['ID'] ?? json['kurum_id'] ?? json['id'],
       ad: json['ADI'] ?? json['kurum_adi'] ?? "Bilinmiyor",
       tipi: json['TIPI'] ?? json['tipi'] ?? "Hastane",

@@ -1,11 +1,14 @@
-import 'package:flutter/material.dart';
+// mobile/lib/main.dart
 
-// Ekranlar
-import 'screens/home_screen.dart';
-import 'screens/donor_list_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'constants/api_constants.dart';
+import 'models/user.dart';
+import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/admin/admin_dashboard.dart';
-import 'screens/staff/staff_dashboard.dart'; // Eski healthcare_screen yerine artık bu var
+import 'screens/staff/staff_dashboard.dart';
 
 void main() {
   runApp(const BloodDonationApp());
@@ -22,109 +25,43 @@ class BloodDonationApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE53935), 
+          seedColor: const Color(0xFFE53935),
           primary: const Color(0xFFE53935),
-          secondary: const Color(0xFF263238), 
-          surface: const Color(0xFFF8F9FA),   
+          secondary: const Color(0xFF263238),
+          surface: const Color(0xFFF8F9FA),
         ),
-        cardTheme: const CardThemeData(
-          elevation: 0,
-          margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.all(Radius.circular(24)), 
-          ),
-          color: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          surfaceTintColor: Colors.transparent,
-          titleTextStyle: TextStyle(
-            color: Color(0xFF263238), 
-            fontSize: 20, 
-            fontWeight: FontWeight.bold
-          ),
-        ),
-      ),
-      home: const RoleSelectionScreen(), 
-    );
-  }
-}
-
-// --- TEST SÜRECİ İÇİN GEÇİCİ ROL SEÇME EKRANI ---
-class RoleSelectionScreen extends StatelessWidget {
-  const RoleSelectionScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.red.shade50, Colors.white],
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.bloodtype_rounded, size: 100, color: Color(0xFFE53935)),
-              const SizedBox(height: 20),
-              const Text(
-                "Hoş geldin Ömer,", 
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const Text(
-                "Lütfen devam etmek için bir rol seç:",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 40),
-              // Roller artık veritabanı standartlarına uygun (donor, staff, admin)
-              _roleButton(context, "Donör (Bağışçı)", "donor", Icons.favorite),
-              _roleButton(context, "Sağlık Personeli (Staff)", "staff", Icons.medication),
-              _roleButton(context, "Admin (Yönetici)", "admin", Icons.admin_panel_settings),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _roleButton(BuildContext context, String label, String role, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10.0, horizontal: 40),
-      child: ElevatedButton.icon(
-        icon: Icon(icon),
-        label: Text(label),
-        style: ElevatedButton.styleFrom(
-          minimumSize: const Size(double.infinity, 55),
-          backgroundColor: Colors.white,
-          foregroundColor: const Color(0xFF263238),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: Colors.grey.shade200),
+            borderSide: BorderSide(color: Colors.grey.shade200),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: Colors.grey.shade200),
           ),
         ),
-        onPressed: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => MainNavigationScreen(userRole: role)),
-          );
-        },
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFE53935),
+            foregroundColor: Colors.white,
+            minimumSize: const Size(double.infinity, 55),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 0,
+          ),
+        ),
       ),
+      home: const LoginScreen(), 
     );
   }
 }
 
-// --- DİNAMİK NAVİGASYON MERKEZİ ---
+// --- KALICI VE %100 DİNAMİK NAVİGASYON MERKEZİ ---
 class MainNavigationScreen extends StatefulWidget {
-  final String userRole;
+  final User currentUser; 
 
-  const MainNavigationScreen({super.key, required this.userRole});
+  const MainNavigationScreen({super.key, required this.currentUser});
 
   @override
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
@@ -132,36 +69,128 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
+  
+  // Staff verileri için değişkenler
+  bool _isLoadingStaffData = false;
+  String _staffName = "Görevli Personel";
+  String _staffInstitution = "Kayıtlı Sağlık Kurumu";
 
-  List<Widget> _getPages() {
-    switch (widget.userRole) {
-      case 'admin':
-        return [const AdminDashboard(), const ProfileScreen()];
-      case 'staff': // TERİM STAFF OLARAK GÜNCELLENDİ
-        return [const StaffDashboard(), const ProfileScreen()];
-      case 'donor':
-      default:
-        return [const HomeScreen(), const DonorListScreen(), const ProfileScreen()];
+  // --- KESİN ÇÖZÜM: ROLÜ GÜVENLİ OKUYAN YARDIMCI FONKSİYON ---
+  String _getSafeRoleStr() {
+    try {
+      return widget.currentUser.role.toString().split('.').last.toLowerCase();
+    } catch (e) {
+      return 'donor'; // Hata olursa varsayılan olarak donör kabul et
     }
   }
 
+  @override
+  void initState() {
+    super.initState();
+    // Eğer giren kişi 'staff' ise, verilerini veritabanından hemen çekelim
+    if (_getSafeRoleStr() == 'staff') {
+      _fetchStaffData();
+    }
+  }
+
+  // --- ARKA PLANDA GERÇEK STAFF BİLGİLERİNİ ÇEKEN FONKSİYON ---
+  Future<void> _fetchStaffData() async {
+    setState(() => _isLoadingStaffData = true);
+    try {
+      final response = await http.get(Uri.parse(ApiConstants.staffEndpoint));
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        
+        final myProfile = data.firstWhere(
+          (s) => s['user_id'] == widget.currentUser.userId, 
+          orElse: () => null
+        );
+
+        if (myProfile != null && mounted) {
+          setState(() {
+            _staffName = myProfile['ad_soyad'] ?? widget.currentUser.email.split('@')[0].toUpperCase();
+            _staffInstitution = myProfile['kurum_adi'] ?? "Kurum Bilgisi Yok";
+            _isLoadingStaffData = false;
+          });
+        } else {
+          if (mounted) setState(() => _isLoadingStaffData = false);
+        }
+      } else {
+        if (mounted) setState(() => _isLoadingStaffData = false);
+      }
+    } catch (e) {
+      debugPrint("Staff verisi çekilirken hata: $e");
+      if (mounted) setState(() => _isLoadingStaffData = false);
+    }
+  }
+
+  // 1. Rol bazlı DİNAMİK sayfaları tanımlıyoruz
+  List<Widget> _getPages() {
+    String roleStr = _getSafeRoleStr(); 
+
+    switch (roleStr) {
+      case 'admin':
+        return [
+          const AdminDashboard(), 
+          ProfileScreen(currentUser: widget.currentUser) 
+        ];
+      case 'staff':
+        if (_isLoadingStaffData) {
+          return [
+            const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFE53935)))),
+            ProfileScreen(currentUser: widget.currentUser)
+          ];
+        }
+        return [
+          StaffDashboard(
+            staffUserId: widget.currentUser.userId,
+            staffName: _staffName,
+            institutionName: _staffInstitution,
+          ), 
+          ProfileScreen(currentUser: widget.currentUser)
+        ];
+      case 'donor':
+      default:
+        return [
+          // Donör için geçici Ana Sayfa
+          Scaffold(
+            backgroundColor: const Color(0xFFFBFBFB),
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.volunteer_activism, size: 80, color: Colors.grey.shade300),
+                  const SizedBox(height: 16),
+                  Text("Donör Paneli Yakında Eklenecek", style: TextStyle(color: Colors.grey.shade500, fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+          ), 
+          ProfileScreen(currentUser: widget.currentUser)
+        ];
+    }
+  }
+
+  // 2. Rol bazlı Navigasyon ikonlarını tanımlıyoruz
   List<BottomNavigationBarItem> _getNavItems() {
-    switch (widget.userRole) {
+    String roleStr = _getSafeRoleStr(); 
+
+    switch (roleStr) {
       case 'admin':
         return const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Sistem Paneli'),
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Sistem'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
-      case 'staff': // TERİM STAFF OLARAK GÜNCELLENDİ
+      case 'staff':
         return const [
-          BottomNavigationBarItem(icon: Icon(Icons.local_hospital_rounded), label: 'Kurum Paneli'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_hospital_rounded), label: 'Kurum'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
       case 'donor':
       default:
         return const [
-          BottomNavigationBarItem(icon: Icon(Icons.explore_rounded), label: 'Keşfet'),
-          BottomNavigationBarItem(icon: Icon(Icons.water_drop_rounded), label: 'Donörler'),
+          BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
     }
@@ -179,9 +208,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
         ),
         child: BottomNavigationBar(
           currentIndex: _selectedIndex,
