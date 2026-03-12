@@ -49,6 +49,7 @@ class NotificationDeliveryEnum(str, enum.Enum):
     BASARISIZ = 'Basarisiz'
 
 class NotificationReactionEnum(str, enum.Enum):
+    BEKLIYOR = 'Bekliyor' # YENİ EKLENDİ: Bildirim ilk gittiğinde bu statüde olur
     KABUL = 'Kabul'
     RED = 'Red'
     GORMEZDEN_GELDI = 'Gormezden_Geldi'
@@ -201,9 +202,14 @@ class MLFeature(Base):
     toplam_bildirim_sayisi = Column(Integer, default=0)
     olumlu_yanit_sayisi = Column(Integer, default=0)
     basarili_bagis_sayisi = Column(Integer, default=0)
-    tercih_edilen_saatler = Column(JSONB, nullable=True)
+    
+    # YENİ EKLENDİ: None hatası almamak için varsayılan saat ataması
+    tercih_edilen_saatler = Column(JSONB, default=[12, 15, 18]) 
     maks_kabul_mesafesi = Column(Float, nullable=True)
     ml_tahmin_skoru = Column(Float, default=0.0)
+    
+    # YENİ EKLENDİ: Modelin temel parametresi, varsayılan değer 3 (Nötr)
+    duyarlilik_seviyesi = Column(Integer, default=3)
 
     donor = relationship("DonorProfile", back_populates="ml_features")
 
@@ -235,7 +241,9 @@ class NotificationLog(Base):
     ml_skoru_o_an = Column(Float, nullable=True) 
     gonderim_zamani = Column(DateTime, default=datetime.utcnow)
     iletilme_durumu = Column(SQLEnum(NotificationDeliveryEnum), nullable=False)
-    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), default=NotificationReactionEnum.GORMEZDEN_GELDI) 
+    
+    # YENİ DEĞİŞTİRİLDİ: Bildirim atıldığında durumu varsayılan olarak "Bekliyor" olmalı
+    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), default=NotificationReactionEnum.BEKLIYOR) 
     reaksiyon_zamani = Column(DateTime, nullable=True) 
 
     user = relationship("User", back_populates="notification_logs")

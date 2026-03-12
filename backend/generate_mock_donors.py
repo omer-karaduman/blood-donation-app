@@ -13,7 +13,7 @@ import models
 fake = Faker('tr_TR')
 
 def generate_mock_data(num_records=5000):
-    print(f"⚙️ {num_records} adet sahte donör verisi üretiliyor...")
+    print(f"⚙️ {num_records} adet ML eğitim verisi (CSV) üretiliyor...")
     
     # 1. VERİTABANINDAN GERÇEK KONUM UUID'LERİNİ ÇEK
     db = SessionLocal()
@@ -21,13 +21,13 @@ def generate_mock_data(num_records=5000):
         neighborhoods = db.query(models.Neighborhood).all()
         if not neighborhoods:
             print("⚠️ HATA: Veritabanında mahalle verisi bulunamadı!")
-            print("Lütfen sahte veri üretmeden önce 'izmir_data.json' verilerini veritabanına yükleyin.")
+            print("Lütfen sahte veri üretmeden önce 'seed_locations.py' verilerini çalıştırın.")
             return
     finally:
         db.close()
 
     # Türkiye'deki yaklaşık kan grubu dağılım oranları
-    blood_groups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] # 0 yerine O harfi standarttır
+    blood_groups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
     bg_weights = [0.37, 0.06, 0.14, 0.02, 0.08, 0.01, 0.28, 0.04]
 
     # İzmir için yaklaşık koordinat sınırları (Enlem ve Boylam)
@@ -38,11 +38,11 @@ def generate_mock_data(num_records=5000):
 
     for _ in range(num_records):
         donor_id = str(uuid.uuid4())
+        gender = random.choice(['E', 'K'])
         age = random.randint(18, 65) 
         blood_group = random.choices(blood_groups, weights=bg_weights, k=1)[0]
         
-        # --- YENİ: İLÇE VE MAHALLE ATAMASI ---
-        # Veritabanından çekilen gerçek mahallelerden birini rastgele seç
+        # --- İLÇE VE MAHALLE ATAMASI ---
         random_neighborhood = random.choice(neighborhoods)
         district_id = str(random_neighborhood.district_id)
         neighborhood_id = str(random_neighborhood.neighborhood_id)
@@ -60,8 +60,14 @@ def generate_mock_data(num_records=5000):
         # --- ML MODELİ İÇİN HEDEF DEĞİŞKEN (TARGET) ÜRETİMİ ---
         probability = 0.1 
         
-        # Kan verme kuralı: Son bağışın üzerinden en az 90 gün geçmiş olmalı
-        if days_since_last_donation > 90:
+        # YENİ KURAL (Medical Restriction): Erkekler 90 gün, Kadınlar 120 gün
+        can_medically_donate = False
+        if gender == 'E' and days_since_last_donation > 90:
+            can_medically_donate = True
+        elif gender == 'K' and days_since_last_donation > 120:
+            can_medically_donate = True
+
+        if can_medically_donate:
             probability += 0.3
             
             if sensitivity_level >= 4:
@@ -83,9 +89,10 @@ def generate_mock_data(num_records=5000):
         data.append({
             "donor_id": donor_id,
             "age": age,
+            "gender": gender,
             "blood_group": blood_group,
-            "district_id": district_id,         # Eklendi
-            "neighborhood_id": neighborhood_id, # Eklendi
+            "district_id": district_id,         
+            "neighborhood_id": neighborhood_id, 
             "latitude": latitude,
             "longitude": longitude,
             "past_donations": past_donations,
@@ -99,11 +106,11 @@ def generate_mock_data(num_records=5000):
     # Veriyi Pandas DataFrame'e çevir
     df = pd.DataFrame(data)
     
-    os.makedirs('data', exist_ok=True)
-    file_path = 'data/mock_donors.csv'
+    os.makedirs('backend/data', exist_ok=True)
+    file_path = 'backend/data/mock_donors.csv'
     df.to_csv(file_path, index=False)
     
-    print(f"✅ Başarılı! Veri seti '{file_path}' konumuna kaydedildi.")
+    print(f"✅ Başarılı! ML Eğitim Veri Seti '{file_path}' konumuna kaydedildi.")
     print("\n📊 Veri Seti Özeti:")
     print(df['will_donate'].value_counts(normalize=True).map('{:.2%}'.format))
 

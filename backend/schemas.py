@@ -136,3 +136,19 @@ class AdminRequestLogResponse(BaseModel):
     istenen_kan_grubu: BloodTypeEnum
     onerilen_donor_sayisi: int
     model_config = ConfigDict(from_attributes=True)
+
+# ==========================================================
+# --- 7. YENİ EKLENEN: DONÖR FEED (BİLDİRİM EKRANI) ŞEMASI
+# ==========================================================
+class DonorFeedResponse(BaseModel):
+    """Donörün mobil uygulamada göreceği 'Bana Gelen Kan Talepleri' kartı"""
+    log_id: UUID
+    talep_id: UUID
+    kurum_adi: str
+    ilce: str
+    mahalle: str
+    istenen_kan_grubu: BloodTypeEnum
+    unite_sayisi: int
+    aciliyet_durumu: UrgencyEnum
+    olusturma_tarihi: datetime
+    model_config = ConfigDict(from_attributes=True)

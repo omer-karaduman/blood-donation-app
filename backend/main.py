@@ -1,8 +1,8 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import func
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import or_
 import models
 import schemas
 from database import engine, SessionLocal
@@ -11,13 +11,14 @@ from datetime import datetime
 import traceback
 import joblib
 import pandas as pd
+import numpy as np
 import os
 from typing import List
 
 # Veritabanı tablolarını otomatik oluştur
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Blood Donation AI API - V3 (Relational Location Optimized)")
+app = FastAPI(title="Blood Donation AI API - V6 (Medical Rules & Full AI)")
 
 # CORS Ayarları: Mobil ve Web erişimi için tüm kaynaklara izin veriliyor
 app.add_middleware(
@@ -36,15 +37,89 @@ def get_db():
     finally:
         db.close()
 
+# ======================================================================
 # --- ML MODELİNİ UYGULAMA BAŞLARKEN YÜKLE ---
-MODEL_PATH = "ml_models/donor_rf_model.pkl"
+# ======================================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Modelleri bu klasöre göre arar
+MODEL_PATH = os.path.join(BASE_DIR, "ml_models", "donor_rf_model.pkl")
+SCALER_PATH = os.path.join(BASE_DIR, "ml_models", "scaler.pkl")
+
 rf_model = None
+scaler = None
 
 if os.path.exists(MODEL_PATH):
-    rf_model = joblib.load(MODEL_PATH)
-    print("✅ ML Modeli başarıyla yüklendi!")
+    try:
+        # weights_only=True uyarısını engellemek ve güvenli yükleme için
+        rf_model = joblib.load(MODEL_PATH)
+        print(f"✅ ML Modeli başarıyla yüklendi: {MODEL_PATH}")
+        if os.path.exists(SCALER_PATH):
+            scaler = joblib.load(SCALER_PATH)
+            print(f"✅ Scaler başarıyla yüklendi: {SCALER_PATH}")
+    except Exception as e:
+        print(f"⚠️ ML Modeli yüklenirken hata oluştu: {e}")
 else:
-    print("⚠️ ML Modeli bulunamadı. Lütfen önce train_model.py scriptini çalıştırın.")
+    print(f"⚠️ ML Modeli bulunamadı! Aranan yol: {MODEL_PATH}")
+    print("Sistem test/yedek modunda çalışacak.")
+
+
+# --- YARDIMCI FONKSİYONLAR ---
+def calculate_age(birthdate):
+    """Doğum tarihinden yaşı hesaplar"""
+    if not birthdate:
+        return 30
+    today = datetime.today().date()
+    if isinstance(birthdate, str):
+        try:
+            bdate = datetime.strptime(birthdate, "%Y-%m-%d").date()
+        except:
+            return 30
+    else:
+        bdate = birthdate
+        
+    return today.year - bdate.year - ((today.month, today.day) < (bdate.month, bdate.day))
+
+def update_donor_sensitivity(db: Session, user_id: uuid.UUID):
+    """
+    Donörün geçmiş reaksiyonlarına (hız ve aciliyet) bakarak 
+    'Duyarlılık Seviyesini' (1-5 arası) dinamik olarak günceller.
+    """
+    ml_feature = db.query(models.MLFeature).filter(models.MLFeature.user_id == user_id).first()
+    if not ml_feature: return
+
+    logs = db.query(models.NotificationLog).filter(models.NotificationLog.user_id == user_id).all()
+    if not logs: return
+
+    base_score = 3.0 # Herkes 3 puanla (nötr) başlar
+    
+    for log in logs:
+        if log.kullanici_reaksiyonu == models.NotificationReactionEnum.GORMEZDEN_GELDI:
+            base_score -= 0.1 # Hiç bakmıyorsa duyarlılık düşer
+            continue
+            
+        if log.reaksiyon_zamani and log.gonderim_zamani:
+            minutes_taken = (log.reaksiyon_zamani - log.gonderim_zamani).total_seconds() / 60.0
+            req = log.blood_request
+            
+            # KABUL ETTİYSE:
+            if log.kullanici_reaksiyonu == models.NotificationReactionEnum.KABUL:
+                base_score += 0.3
+                if minutes_taken <= 15: base_score += 0.4 # 15 dk içinde çok hızlı
+                elif minutes_taken <= 60: base_score += 0.2
+                
+                if req and req.aciliyet_durumu == models.UrgencyEnum.ACIL: base_score += 0.3
+                elif req and req.aciliyet_durumu == models.UrgencyEnum.AFET: base_score += 0.5
+                
+            # REDDETTİYSE (Ama hızlıca haber verdiyse iyi niyetlidir):
+            elif log.kullanici_reaksiyonu == models.NotificationReactionEnum.RED:
+                if minutes_taken <= 15: base_score += 0.1 
+                else: base_score -= 0.1
+                
+    # 1 ile 5 arasında sınırla
+    final_score = max(1, min(5, round(base_score)))
+    ml_feature.duyarlilik_seviyesi = int(final_score)
+    db.commit()
 
 # --- ANA DİZİN ---
 @app.get("/")
@@ -52,7 +127,7 @@ def read_root():
     return {"status": "Online", "message": "Akıllı Kan Bağışı Sistemi Aktif."}
 
 # ======================================================================
-# --- KONUM SERVİSLERİ (YENİ) ---
+# --- KONUM SERVİSLERİ ---
 # ======================================================================
 
 @app.get("/locations/districts", response_model=List[schemas.DistrictResponse])
@@ -67,7 +142,9 @@ def get_neighborhoods(district_id: uuid.UUID, db: Session = Depends(get_db)):
         models.Neighborhood.district_id == district_id
     ).order_by(models.Neighborhood.name).all()
 
+# ======================================================================
 # --- KİMLİK DOĞRULAMA (LOGIN) ---
+# ======================================================================
 @app.post("/login", response_model=schemas.UserResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     """Kullanıcı e-posta ve şifresini doğrular, rol bilgisini döner."""
@@ -75,7 +152,6 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
              .options(joinedload(models.User.donor_profile), joinedload(models.User.staff_profile))\
              .filter(models.User.email == login_data.email).first()
     
-    # Not: Gerçek projede şifreler passlib gibi bir kütüphane ile doğrulanmalıdır
     if not user or user.hashed_password != login_data.password:
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
     
@@ -85,27 +161,34 @@ def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
     return user 
 
 # ======================================================================
-# --- 1. PERSONEL (STAFF) İŞ AKIŞI: KAN TALEBİ VE OTOMATİK ML ---
+# --- 1. PERSONEL (STAFF) İŞ AKIŞI: AKILLI KAN TALEBİ ---
 # ======================================================================
 
-@app.post("/requests/", response_model=schemas.BloodRequestDetailResponse)
+@app.post("/requests/")
 def create_smart_blood_request(
     request_in: schemas.BloodRequestCreate, 
     personel_id: uuid.UUID, 
     db: Session = Depends(get_db)
 ):
     """
-    Personel kan talebi oluşturur. Sistem arka planda ML modelini çalıştırarak 
-    uygun donörlere bildirim loglarını otomatik yazar.
+    Tez Odaklı Özgün Fonksiyon: Personel kan talebi oluşturur. Sistem arka planda 
+    hastaneye 15 km çapındaki uygun donörleri bulur, Tıbbi kısıtlamaları (3-4 ay) kontrol eder, 
+    ML modeline sokar ve en yüksek ihtimalli ilk 30 kişiye bildirim (NotificationLog) atar.
     """
-    # 1. Personelin kurumunu doğrula
+    
+# 1. Personeli ve Kurumu (Hastaneyi) Bul
     staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == personel_id).first()
     if not staff:
         raise HTTPException(status_code=404, detail="Personel yetkisi bulunamadı.")
 
-    # 2. Kan Talebi Kaydını Oluştur
+    # DÜZELTME 1: Institution.id yerine Institution.kurum_id yazdık
+    institution = db.query(models.Institution).filter(models.Institution.kurum_id == staff.kurum_id).first()
+    if not institution or not institution.konum:
+        raise HTTPException(status_code=400, detail="Kurumun konum verisi eksik, akıllı eşleştirme yapılamaz.")
+
+    # 2. Kan Talebini Veritabanına Kaydet
     new_request = models.BloodRequest(
-        kurum_id=staff.kurum_id,
+        kurum_id=institution.kurum_id, # DÜZELTME 2: institution.id yerine institution.kurum_id yazıldı
         olusturan_personel_id=personel_id,
         istenen_kan_grubu=request_in.istenen_kan_grubu,
         unite_sayisi=request_in.unite_sayisi,
@@ -113,62 +196,154 @@ def create_smart_blood_request(
         durum=models.RequestStatusEnum.AKTIF
     )
     db.add(new_request)
-    db.flush()
+    db.flush() # new_request.talep_id'yi alabilmek için geçici kayıt
 
-    # 3. ARKA PLAN ML SÜRECİ (Görünmez Zeka)
-    if rf_model is not None:
-        donors = db.query(models.DonorProfile)\
-                   .options(joinedload(models.DonorProfile.ml_features))\
-                   .filter(models.DonorProfile.kan_grubu == request_in.istenen_kan_grubu)\
-                   .filter(models.DonorProfile.kan_verebilir_mi == True)\
-                   .all()
+    # =========================================================================
+    # AŞAMA 1: POSTGIS İLE KONUM BAZLI FİLTRELEME (Maksimum 15 KM Çap)
+    # =========================================================================
+    MAX_DISTANCE_METERS = 15000 
+    
+    nearby_donors = db.query(
+        models.DonorProfile,
+        func.ST_DistanceSphere(models.DonorProfile.konum, institution.konum).label("distance_meters")
+    ).options(
+        joinedload(models.DonorProfile.ml_features)
+    ).filter(
+        models.DonorProfile.kan_grubu == request_in.istenen_kan_grubu,
+        models.DonorProfile.kan_verebilir_mi == True,
+        models.DonorProfile.konum != None,
+        func.ST_DistanceSphere(models.DonorProfile.konum, institution.konum) <= MAX_DISTANCE_METERS
+    ).all()
 
-        if donors:
-            ml_input_data = []
-            valid_donors = []
-            for d in donors:
-                age = (datetime.utcnow().date() - d.dogum_tarihi.date()).days // 365
-                days_since = (datetime.utcnow() - d.son_bagis_tarihi).days if d.son_bagis_tarihi else 999
+    if not nearby_donors:
+        db.commit()
+        return {"message": "Talep oluşturuldu ancak 15 km çapında uygun donör bulunamadı.", "hedeflenen_donor_sayisi": 0}
+
+    # =========================================================================
+    # AŞAMA 2: TIBBİ KISITLAMALAR VE ML İLE GELME İHTİMALİ HESAPLAMA
+    # =========================================================================
+    valid_donors = []
+    ml_input_data = []
+    
+    current_time = datetime.utcnow()
+
+    for donor, distance_meters in nearby_donors:
+        
+        # --- TIBBİ KISITLAMA (MEDICAL RESTRICTION) KONTROLÜ ---
+        days_since = 999 # Varsayılan olarak hiç bağış yapmamış kabul et
+        if donor.son_bagis_tarihi:
+            days_since = (current_time - donor.son_bagis_tarihi).days
+            
+            # Erkekler için 3 ay (90 gün) kuralı
+            if donor.cinsiyet == 'E' and days_since < 90:
+                continue # Bu donörü atla, listeye ekleme
                 
-                feat = d.ml_features
-                response_rate = (feat.olumlu_yanit_sayisi / feat.toplam_bildirim_sayisi) if feat and feat.toplam_bildirim_sayisi > 0 else 0.5
+            # Kadınlar için 4 ay (120 gün) kuralı
+            if donor.cinsiyet == 'K' and days_since < 120:
+                continue # Bu donörü atla, listeye ekleme
                 
-                ml_input_data.append({
-                    "age": age,
-                    "past_donations": feat.basarili_bagis_sayisi if feat else 0,
-                    "days_since_last_donation": days_since,
-                    "response_rate": response_rate,
-                    "sensitivity_level": 3,
-                    "preferred_hour": feat.tercih_edilen_saatler[0] if feat and feat.tercih_edilen_saatler else 12
-                })
-                valid_donors.append(d)
+        # Eğer buraya kadar geldiyse tıbbi engeli yoktur, listeye ekle
+        distance_km = distance_meters / 1000.0
+        valid_donors.append(donor) 
+        
+        if rf_model is not None:
+            age = calculate_age(donor.dogum_tarihi)
+            # Cinsiyet Encode (Erkek: 1, Kadın: 0)
+            gender_numeric = 1 if donor.cinsiyet == 'E' else 0
+            
+            # ML_Features tablosundan veriler
+            feat = donor.ml_features
+            past_donations = feat.basarili_bagis_sayisi if feat else 0
+            
+            if feat and feat.toplam_bildirim_sayisi > 0:
+                response_rate = feat.olumlu_yanit_sayisi / feat.toplam_bildirim_sayisi
+            else:
+                response_rate = 0.5 # Varsayılan
+                
+            sensitivity = getattr(feat, 'duyarlilik_seviyesi', 3) if feat else 3
+            pref_hour = feat.tercih_edilen_saatler[0] if feat and feat.tercih_edilen_saatler else 12
+            
+            ml_input_data.append({
+                "age": age,
+                "past_donations": past_donations,
+                "days_since_last_donation": days_since,
+                "response_rate": response_rate,
+                "sensitivity_level": sensitivity,
+                "preferred_hour": pref_hour
+            })
 
+    # Eğer tıbbi kısıtlamalardan sonra elde hiç donör kalmadıysa
+    if not valid_donors:
+        db.commit()
+        return {"message": "15 km çapında donörler bulundu ancak tıbbi bekleme süreleri dolmadığı için bildirim atılamadı.", "hedeflenen_donor_sayisi": 0}
+
+    donor_predictions = []
+    
+    # Model yüklüyse Pandas DataFrame ile toplu tahmin yap
+    if rf_model is not None and ml_input_data:
+        try:
             df = pd.DataFrame(ml_input_data)
-            probabilities = rf_model.predict_proba(df)[:, 1]
-
-            # 4. Akıllı Bildirim Loglama
-            for i, donor in enumerate(valid_donors):
-                score = float(probabilities[i] * 100)
+            if scaler:
+                # EĞİTİMDE KULLANILAN SCALER İLE ÖLÇEKLENDİR
+                features = scaler.transform(df)
+            else:
+                features = df
                 
-                if score >= 40.0: # Belirli bir başarı eşiği
-                    new_log = models.NotificationLog(
-                        user_id=donor.user_id,
-                        talep_id=new_request.talep_id,
-                        ml_skoru_o_an=score,
-                        iletilme_durumu=models.NotificationDeliveryEnum.BASARILI,
-                        kullanici_reaksiyonu=models.NotificationReactionEnum.GORMEZDEN_GELDI
-                    )
-                    db.add(new_log)
-                    if donor.ml_features:
-                        donor.ml_features.toplam_bildirim_sayisi += 1
+            probabilities = rf_model.predict_proba(features)[:, 1]
+            
+            for i, donor in enumerate(valid_donors):
+                donor_predictions.append({"donor": donor, "probability": float(probabilities[i] * 100)})
+        except Exception as e:
+            print(f"ML Modeli Tahmin Hatası: {e}")
+            for donor in valid_donors:
+                donor_predictions.append({"donor": donor, "probability": 50.0})
+    else:
+        # Model yoksa rastgele olasılık
+        for donor in valid_donors:
+            donor_predictions.append({"donor": donor, "probability": 50.0})
+
+    # =========================================================================
+    # AŞAMA 3: OYUNLAŞTIRMA VE AKILLI BİLDİRİM (Top 30 Kişi)
+    # =========================================================================
+    # Gelme ihtimali puanına göre (Büyükten Küçüğe) donörleri sırala
+    donor_predictions.sort(key=lambda x: x["probability"], reverse=True)
+    
+    # Sadece en yüksek ihtimalli ilk 30 kişiyi seç
+    top_30_donors = donor_predictions[:30]
+
+    # Seçilen kişilere bildirim veritabanı loglarını yaz
+    for dp in top_30_donors:
+        donor = dp["donor"]
+        score = dp["probability"]
+        
+        new_log = models.NotificationLog(
+            user_id=donor.user_id,
+            talep_id=new_request.talep_id,
+            ml_skoru_o_an=score,
+            iletilme_durumu=models.NotificationDeliveryEnum.BASARILI,
+            kullanici_reaksiyonu=models.NotificationReactionEnum.BEKLIYOR,
+            gonderim_zamani=datetime.utcnow()
+        )
+        db.add(new_log)
+        
+        # Donörün toplam aldığı bildirim sayısını (ML feat) artır
+        if donor.ml_features:
+            donor.ml_features.toplam_bildirim_sayisi += 1
 
     db.commit()
     db.refresh(new_request)
-    return new_request
+
+    return {
+        "message": "Talep başarıyla oluşturuldu ve tıbbi kısıtlamalar kontrol edilerek ML eşleştirmesi yapıldı.",
+        "tibbi_uygun_bulunan_donor": len(valid_donors),
+        "bildirim_gonderilen_kisi_sayisi": len(top_30_donors),
+        "talep_id": new_request.talep_id
+    }
+
 
 @app.get("/staff/my-requests", response_model=List[schemas.BloodRequestDetailResponse])
 def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Personelin kendi taleplerini ve donör yanıtlarını izlemesini sağlar."""
+    """Personelin kendi taleplerini ve ML önerilerinin sonuçlarını izlemesini sağlar."""
     requests = db.query(models.BloodRequest)\
                  .options(joinedload(models.BloodRequest.bildirimler).joinedload(models.NotificationLog.user))\
                  .filter(models.BloodRequest.olusturan_personel_id == personel_id)\
@@ -196,7 +371,85 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
     return output
 
 # ======================================================================
-# --- 2. ADMİN İŞ AKIŞI: SİSTEM DENETİMİ VE ÖZET ---
+# --- 2. DONÖR İŞ AKIŞI: BEHAVIORAL ANALYTICS (REAKSİYON VERME) ---
+# ======================================================================
+
+@app.get("/donor/{user_id}/feed", response_model=List[schemas.DonorFeedResponse])
+def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    SADECE DONÖRE ÖZEL FEED: Donörün kendi NotificationLog'unda bulunan ve 
+    ilgili talebin 'AKTIF' olduğu durumları gösterir.
+    """
+    my_logs = db.query(models.NotificationLog)\
+                .options(
+                    joinedload(models.NotificationLog.request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
+                    joinedload(models.NotificationLog.request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
+                )\
+                .filter(
+                    models.NotificationLog.user_id == user_id,
+                    models.NotificationLog.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR
+                ).all()
+    
+    feed_data = []
+    for log in my_logs:
+        req = log.request
+        if req and req.durum == models.RequestStatusEnum.AKTIF:
+            feed_data.append({
+                "log_id": log.log_id, 
+                "talep_id": req.talep_id,
+                "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
+                "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
+                "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
+                "istenen_kan_grubu": req.istenen_kan_grubu,
+                "unite_sayisi": req.unite_sayisi,
+                "aciliyet_durumu": req.aciliyet_durumu,
+                "olusturma_tarihi": req.olusturma_tarihi
+            })
+            
+    feed_data.sort(key=lambda x: x["olusturma_tarihi"], reverse=True)
+    return feed_data
+
+
+@app.post("/donor/{user_id}/respond/{log_id}")
+def respond_to_notification(
+    user_id: uuid.UUID, 
+    log_id: uuid.UUID, 
+    reaksiyon: models.NotificationReactionEnum = Query(..., description="'Kabul' veya 'Red' gönderin"), 
+    db: Session = Depends(get_db)
+):
+    """
+    YENİ ENDPOINT: Donör mobil uygulamadan bildirime Kabul veya Ret yanıtı verir.
+    Bu işlem Yapay Zeka için Olumlu Yanıt oranını ve Duyarlılık Seviyesini dinamik olarak günceller!
+    """
+    log = db.query(models.NotificationLog).filter(
+        models.NotificationLog.log_id == log_id, 
+        models.NotificationLog.user_id == user_id
+    ).first()
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="Bildirim bulunamadı.")
+        
+    if log.kullanici_reaksiyonu != models.NotificationReactionEnum.BEKLIYOR:
+        raise HTTPException(status_code=400, detail="Bu bildirime zaten yanıt verilmiş.")
+
+    # Logu güncelle
+    log.kullanici_reaksiyonu = reaksiyon
+    log.reaksiyon_zamani = datetime.utcnow()
+    
+    # Kabul ettiyse olumlu yanıt sayısını artır
+    ml_feat = db.query(models.MLFeature).filter(models.MLFeature.user_id == user_id).first()
+    if ml_feat and reaksiyon == models.NotificationReactionEnum.KABUL:
+        ml_feat.olumlu_yanit_sayisi += 1
+        
+    db.commit()
+    
+    # Duyarlılık (Sensitivity) hesaplama motorunu tetikle!
+    update_donor_sensitivity(db, user_id)
+    
+    return {"message": f"Yanıtınız '{reaksiyon}' olarak başarıyla kaydedildi ve yapay zeka profili güncellendi."}
+
+# ======================================================================
+# --- 3. ADMİN İŞ AKIŞI: SİSTEM DENETİMİ VE ÖZET ---
 # ======================================================================
 
 @app.get("/api/admin/summary")
@@ -224,12 +477,12 @@ def get_admin_logs(db: Session = Depends(get_db)):
     return result
 
 # ======================================================================
-# --- 3. GENEL YÖNETİM (Kayıt, Kurum, Personel) ---
+# --- 4. GENEL YÖNETİM (Kayıt, Kurum, Personel) ---
 # ======================================================================
 
 @app.post("/register/donor/", response_model=schemas.UserResponse)
 def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
-    """Yeni donör kaydı oluşturur (İlişkisel Konum Destekli)."""
+    """Yeni donör kaydı oluşturur (PostGIS Konum Destekli)."""
     db_user = db.query(models.User).filter(models.User.email == user_in.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email kullanımda.")
@@ -238,7 +491,7 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.flush()
 
-    # DonorProfile verisi - latitude ve longitude hariç (WKTElement kullanılacak)
+    # DonorProfile verisi - latitude ve longitude hariç
     donor_data = user_in.model_dump(exclude={"email", "password", "latitude", "longitude"})
     new_profile = models.DonorProfile(user_id=new_user.user_id, **donor_data)
 
@@ -259,6 +512,7 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
+
 @app.get("/institutions/", response_model=list[schemas.InstitutionResponse])
 def get_institutions(district_id: uuid.UUID = None, tipi: models.InstitutionTypeEnum = None, db: Session = Depends(get_db)):
     """Kurumları ilçe ID'si veya tipine göre filtreler."""
@@ -272,9 +526,10 @@ def get_institutions(district_id: uuid.UUID = None, tipi: models.InstitutionType
         query = query.filter(models.Institution.tipi == tipi)
     return query.all()
 
+
 @app.get("/staff/")
 def get_all_staff(db: Session = Depends(get_db)):
-    """Tüm personeli listeler; boş veriler için varsayılan değerler döner (Null Safety)."""
+    """Tüm personeli listeler."""
     staff_list = db.query(models.StaffProfile).all()
     result = []
     for s in staff_list:
@@ -289,6 +544,7 @@ def get_all_staff(db: Session = Depends(get_db)):
             "kurum_adi": s.institution.kurum_adi if s.institution else "Bilinmiyor"
         })
     return result
+
 
 @app.post("/staff/", response_model=schemas.UserResponse)
 def create_staff(staff: schemas.StaffCreate, db: Session = Depends(get_db)):
@@ -313,6 +569,7 @@ def create_staff(staff: schemas.StaffCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
+
 @app.put("/staff/{user_id}")
 def update_staff(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
     """Personel bilgilerini günceller."""
@@ -336,6 +593,7 @@ def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Silindi"}
 
+
 @app.get("/institutions/{institution_id}/staff")
 def get_institution_staff(institution_id: uuid.UUID, db: Session = Depends(get_db)):
     """Sadece belirli bir kuruma kayıtlı personelleri listeler."""
@@ -352,6 +610,7 @@ def get_institution_staff(institution_id: uuid.UUID, db: Session = Depends(get_d
             "kurum_adi": s.institution.kurum_adi if s.institution else "Bilinmiyor"
         })
     return result
+
 
 @app.post("/institutions/", response_model=schemas.InstitutionResponse)
 def create_institution(inst_in: schemas.InstitutionCreate, db: Session = Depends(get_db)):
@@ -379,7 +638,7 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
     
-    # Donör ise donör bilgilerini dön
+    # Donör ise
     if user.role.name == "DONOR" and user.donor_profile:
         return {
             "ad_soyad": user.donor_profile.ad_soyad,
@@ -387,7 +646,7 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
             "mahalle": user.donor_profile.neighborhood.name if user.donor_profile.neighborhood else "Belirtilmemiş"
         }
     
-    # Personel ise personel bilgilerini dön
+    # Personel ise
     elif user.role.name == "HEALTHCARE" and user.staff_profile:
         return {
             "ad_soyad": user.staff_profile.ad_soyad,
@@ -398,32 +657,3 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
     
     # Admin ise
     return {"ad_soyad": "Sistem Yöneticisi", "kan_grubu": "-"}
-
-@app.get("/donor/{user_id}/feed")
-def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Donörün ana sayfasında (Feed) göreceği aktif kan taleplerini listeler."""
-    
-    # Aktif olan tüm kan taleplerini (en yeniden eskiye doğru) hastane bilgisiyle çekiyoruz
-    active_requests = db.query(models.BloodRequest)\
-                        .options(
-                            joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
-                            joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
-                        )\
-                        .filter(models.BloodRequest.durum == models.RequestStatusEnum.AKTIF)\
-                        .order_by(models.BloodRequest.olusturma_tarihi.desc())\
-                        .all()
-    
-    feed_data = []
-    for req in active_requests:
-        feed_data.append({
-            "talep_id": req.talep_id,
-            "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
-            "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
-            "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
-            "istenen_kan_grubu": req.istenen_kan_grubu,
-            "unite_sayisi": req.unite_sayisi,
-            "aciliyet_durumu": req.aciliyet_durumu,
-            "olusturma_tarihi": req.olusturma_tarihi
-        })
-        
-    return feed_data
