@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import '../../models/institution.dart';
 import 'staff_settings_screen.dart';
@@ -24,19 +22,15 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
 
   final TextEditingController _nameSearchController = TextEditingController();
   Institution? _selectedFilterInstitution;
-  String? _selectedFilterDistrict; 
-
-  final List<String> districts = [
-    "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", 
-    "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir", 
-    "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa", 
-    "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", 
-    "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
-  ];
+  
+  // YENİ: String yerine District nesnesi tutuyoruz
+  District? _selectedFilterDistrict; 
+  List<District> _districtsList = [];
 
   @override
   void initState() {
     super.initState();
+    _fetchDistricts(); // Sayfa açılırken ilçeleri çek
     _fetchData();
   }
 
@@ -46,6 +40,23 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     super.dispose();
   }
 
+  // --- YENİ: İLÇELERİ BACKEND'DEN ÇEK ---
+  Future<void> _fetchDistricts() async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _districtsList = data.map((d) => District.fromJson(d)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("İlçe verisi çekilemedi: $e");
+    }
+  }
+
   Future<void> _fetchData() async {
     setState(() => isLoading = true);
     try {
@@ -53,11 +64,13 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
       final instResponse = await http.get(Uri.parse(ApiConstants.institutionsEndpoint));
 
       if (staffResponse.statusCode == 200 && instResponse.statusCode == 200) {
-        setState(() {
-          allStaffList = json.decode(utf8.decode(staffResponse.bodyBytes));
-          final List<dynamic> instJson = json.decode(utf8.decode(instResponse.bodyBytes));
-          allInstitutions = instJson.map((data) => Institution.fromJson(data)).toList();
-        });
+        if(mounted) {
+          setState(() {
+            allStaffList = json.decode(utf8.decode(staffResponse.bodyBytes));
+            final List<dynamic> instJson = json.decode(utf8.decode(instResponse.bodyBytes));
+            allInstitutions = instJson.map((data) => Institution.fromJson(data)).toList();
+          });
+        }
       }
     } catch (e) {
       debugPrint("Veri Çekme Hatası: $e");
@@ -103,7 +116,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                         setDialogState(() {
                           String query = _normalizeTr(val);
                           filteredList = allInstitutions.where((inst) {
-                            return _normalizeTr(inst.ad).contains(query) || _normalizeTr(inst.ilce).contains(query);
+                            // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
+                            return _normalizeTr(inst.ad).contains(query) || _normalizeTr(inst.ilceAdi).contains(query);
                           }).toList();
                         });
                       },
@@ -136,7 +150,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                 color: inst.tipi == "Kan Merkezi" ? Colors.red : Colors.blue,
                               ),
                               title: Text(inst.ad, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                              subtitle: Text(inst.ilce, style: const TextStyle(fontSize: 12)),
+                              // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
+                              subtitle: Text(inst.ilceAdi, style: const TextStyle(fontSize: 12)),
                               onTap: () {
                                 onSelected(inst);
                                 Navigator.pop(context);
@@ -155,9 +170,9 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     );
   }
 
-  void _showDistrictSearchDialog(String? currentSelection, Function(String?) onSelected) {
+  void _showDistrictSearchDialog(District? currentSelection, Function(District?) onSelected) {
     TextEditingController searchCtrl = TextEditingController();
-    List<String> filteredList = List.from(districts);
+    List<District> filteredList = List.from(_districtsList);
 
     showDialog(
       context: context,
@@ -187,7 +202,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                       onChanged: (val) {
                         setDialogState(() {
                           String query = _normalizeTr(val);
-                          filteredList = districts.where((d) => _normalizeTr(d).contains(query)).toList();
+                          filteredList = _districtsList.where((d) => _normalizeTr(d.name).contains(query)).toList();
                         });
                       },
                     ),
@@ -209,12 +224,12 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           itemCount: filteredList.length,
                           itemBuilder: (context, index) {
                             final dist = filteredList[index];
-                            bool isSelected = currentSelection == dist;
+                            bool isSelected = currentSelection?.id == dist.id;
                             return ListTile(
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               tileColor: isSelected ? Colors.blue.shade50 : null,
                               leading: Icon(Icons.location_on_outlined, color: isSelected ? Colors.blue : Colors.grey),
-                              title: Text(dist, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+                              title: Text(dist.name, style: TextStyle(fontSize: 14, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
                               onTap: () {
                                 onSelected(dist);
                                 Navigator.pop(context);
@@ -309,7 +324,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                             Expanded(
                               child: Text(
                                 formSelectedInstitution != null 
-                                    ? "${formSelectedInstitution!.ad} (${formSelectedInstitution!.ilce})" 
+                                    // YENİ: formSelectedInstitution!.ilceAdi kullanıldı
+                                    ? "${formSelectedInstitution!.ad} (${formSelectedInstitution!.ilceAdi})" 
                                     : "Görev Yapacağı Kurumu Ara / Seç",
                                 style: TextStyle(
                                   color: formSelectedInstitution != null ? Colors.blue.shade900 : Colors.grey.shade600,
@@ -415,7 +431,7 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                               "email": emailCtrl.text.trim(),
                               "password": passwordCtrl.text.trim(),
                               "ad_soyad": nameCtrl.text.trim(),
-                              "kurum_id": formSelectedInstitution!.id, 
+                              "kurum_id": formSelectedInstitution!.id.toString(), // UUID güvencesi
                               "unvan": finalTitle,
                               "personel_no": "P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}"
                             };
@@ -513,15 +529,19 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
     final String nameQuery = _normalizeTr(_nameSearchController.text);
 
     final List<dynamic> processedStaffList = allStaffList.where((staff) {
-      // NULL GÜVENLİĞİ İLE DEĞİŞKENLERİ ALALIM
       final String staffName = _normalizeTr(staff['ad_soyad'] ?? "");
       final String? staffInstId = staff['kurum_id'];
       
       final inst = allInstitutions.where((i) => i.id == staffInstId).firstOrNull;
-      final String staffDistrict = inst != null ? _normalizeTr(inst.ilce) : "";
+      
+      // YENİ: inst.ilce yerine inst.ilceAdi üzerinden arama yapıyoruz
+      final String staffDistrict = inst != null ? _normalizeTr(inst.ilceAdi) : "";
 
       final bool matchesName = staffName.contains(nameQuery);
-      final bool matchesDistrict = _selectedFilterDistrict == null || staffDistrict == _normalizeTr(_selectedFilterDistrict!);
+      
+      // YENİ: _selectedFilterDistrict artık District objesi olduğu için .name üzerinden kontrol ediyoruz
+      final bool matchesDistrict = _selectedFilterDistrict == null || staffDistrict == _normalizeTr(_selectedFilterDistrict!.name);
+      
       final bool matchesInstitution = _selectedFilterInstitution == null || _selectedFilterInstitution!.id == staffInstId;
 
       return matchesName && matchesDistrict && matchesInstitution;
@@ -604,7 +624,8 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    _selectedFilterDistrict ?? "İlçe Seç...",
+                                    // YENİ: _selectedFilterDistrict artık obje
+                                    _selectedFilterDistrict?.name ?? "İlçe Seç...",
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: _selectedFilterDistrict != null ? Colors.blue.shade700 : Colors.grey.shade400,
@@ -712,7 +733,6 @@ class _StaffManagementScreenState extends State<StaffManagementScreen> {
                           (context, index) {
                             final staff = processedStaffList[index]; 
                             
-                            // NULL GÜVENLİĞİ VE KURUM TİPİ BELİRLEME
                             final inst = allInstitutions.where((i) => i.id == staff['kurum_id']).firstOrNull;
                             bool isBloodBank = inst?.tipi == "Kan Merkezi";
                             Color themeColor = isBloodBank ? const Color(0xFFE53935) : const Color(0xFF1E88E5);

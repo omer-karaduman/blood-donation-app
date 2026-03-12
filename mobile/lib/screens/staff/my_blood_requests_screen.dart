@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import '../../constants/api_constants.dart';
 
 class MyBloodRequestsScreen extends StatefulWidget {
-  final String staffUserId; // Dashboard'dan gelen parametre eklendi
+  final String staffUserId; 
 
   const MyBloodRequestsScreen({super.key, required this.staffUserId});
 
@@ -33,14 +33,12 @@ class _MyBloodRequestsScreenState extends State<MyBloodRequestsScreen> {
     });
 
     try {
-      // Backend'deki /staff/my-requests endpoint'ine personel ID'sini gönderiyoruz
       final response = await http.get(
         Uri.parse('${ApiConstants.baseUrl}/staff/my-requests?personel_id=${widget.staffUserId}'),
       );
 
       if (response.statusCode == 200) {
         setState(() {
-          // Türkçe karakter sorununu çözmek için utf8.decode kullanıyoruz
           _requests = jsonDecode(utf8.decode(response.bodyBytes));
           _isLoading = false;
         });
@@ -58,7 +56,6 @@ class _MyBloodRequestsScreenState extends State<MyBloodRequestsScreen> {
     }
   }
 
-  // Tarih formatlamak için yardımcı fonksiyon
   String _formatDate(String isoDate) {
     try {
       DateTime date = DateTime.parse(isoDate).toLocal();
@@ -169,7 +166,7 @@ class _MyBloodRequestsScreenState extends State<MyBloodRequestsScreen> {
                           borderRadius: BorderRadius.circular(10)
                         ),
                         child: Text(
-                          "${request['istenen_kan_grubu']} Kan Aranyor", 
+                          "${request['istenen_kan_grubu']} Kan Aranıyor", 
                           style: const TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.bold, fontSize: 12)
                         ),
                       ),
@@ -199,23 +196,32 @@ class _MyBloodRequestsScreenState extends State<MyBloodRequestsScreen> {
                     ),
                     const Text("Donör Yanıtları (ML Önerileri)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
                     const SizedBox(height: 10),
-                    ...dynamicResponses.map((r) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Row(
-                        children: [
-                          Icon(
-                            r['reaksiyon'] == 'Geliyorum' ? Icons.check_circle : (r['reaksiyon'] == 'Reddedildi' ? Icons.cancel : Icons.access_time_filled),
-                            size: 16, 
-                            color: r['reaksiyon'] == 'Geliyorum' ? Colors.green : (r['reaksiyon'] == 'Reddedildi' ? Colors.red : Colors.orange)
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(r['donor_ad_soyad'] ?? "Bilinmeyen Donör", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          ),
-                          Text(r['reaksiyon'] ?? "Bekliyor", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                      ),
-                    )),
+                    ...dynamicResponses.map((r) {
+                      // YENİ: Backend Enum değerlerine göre eşleştirme düzeltildi
+                      bool isKabul = r['reaksiyon'] == 'Kabul';
+                      bool isRed = r['reaksiyon'] == 'Red';
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isKabul ? Icons.check_circle : (isRed ? Icons.cancel : Icons.access_time_filled),
+                              size: 16, 
+                              color: isKabul ? Colors.green : (isRed ? Colors.red : Colors.orange)
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(r['donor_ad_soyad'] ?? "Bilinmeyen Donör", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            ),
+                            Text(
+                              isKabul ? "Geliyor" : (isRed ? "Gelemiyor" : "Bekliyor"), 
+                              style: const TextStyle(fontSize: 12, color: Colors.grey)
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
                   ],
                 ],
               ),

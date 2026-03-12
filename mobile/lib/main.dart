@@ -5,10 +5,20 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'constants/api_constants.dart';
 import 'models/user.dart';
+
+// --- EKRAN İMPORTLARI ---
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
+
+// Admin Ekranları
 import 'screens/admin/admin_dashboard.dart';
+
+// Staff (Personel) Ekranları
 import 'screens/staff/staff_dashboard.dart';
+
+// YENİ: Donor (Bağışçı) Ekranları
+import 'screens/donor/donor_home_screen.dart'; // DOSYA YOLU DÜZELTİLDİ
+
 
 void main() {
   runApp(const BloodDonationApp());
@@ -59,7 +69,7 @@ class BloodDonationApp extends StatelessWidget {
 
 // --- KALICI VE %100 DİNAMİK NAVİGASYON MERKEZİ ---
 class MainNavigationScreen extends StatefulWidget {
-  final User currentUser; 
+  final dynamic currentUser; 
 
   const MainNavigationScreen({super.key, required this.currentUser});
 
@@ -78,16 +88,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   // --- KESİN ÇÖZÜM: ROLÜ GÜVENLİ OKUYAN YARDIMCI FONKSİYON ---
   String _getSafeRoleStr() {
     try {
+      if (widget.currentUser == null || widget.currentUser.role == null) return 'donor';
       return widget.currentUser.role.toString().split('.').last.toLowerCase();
     } catch (e) {
-      return 'donor'; // Hata olursa varsayılan olarak donör kabul et
+      return 'donor'; 
     }
   }
 
   @override
   void initState() {
     super.initState();
-    // Eğer giren kişi 'staff' ise, verilerini veritabanından hemen çekelim
     if (_getSafeRoleStr() == 'staff') {
       _fetchStaffData();
     }
@@ -153,20 +163,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       case 'donor':
       default:
         return [
-          // Donör için geçici Ana Sayfa
-          Scaffold(
-            backgroundColor: const Color(0xFFFBFBFB),
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.volunteer_activism, size: 80, color: Colors.grey.shade300),
-                  const SizedBox(height: 16),
-                  Text("Donör Paneli Yakında Eklenecek", style: TextStyle(color: Colors.grey.shade500, fontSize: 16, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ), 
+          // YENİ OLUŞTURDUĞUMUZ DONÖR ANA SAYFASI
+          DonorHomeScreen(currentUser: widget.currentUser), 
           ProfileScreen(currentUser: widget.currentUser)
         ];
     }

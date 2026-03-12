@@ -57,7 +57,29 @@ class InstitutionTypeEnum(str, enum.Enum):
     HASTANE = 'Hastane'
     KAN_MERKEZI = 'Kan Merkezi'
 
-# --- 2. ANA KULLANICI TABLOSU (AUTH & IDENTITY) ---
+# --- 2. KONUM HİYERARŞİSİ (İZMİR ÖZEL) ---
+
+class District(Base):
+    __tablename__ = "districts"
+    district_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String, nullable=False, index=True)
+    city_code = Column(Integer, default=35) # İzmir
+
+    neighborhoods = relationship("Neighborhood", back_populates="district", cascade="all, delete-orphan")
+    institutions = relationship("Institution", back_populates="district")
+
+class Neighborhood(Base):
+    __tablename__ = "neighborhoods"
+    neighborhood_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    district_id = Column(UUID(as_uuid=True), ForeignKey("districts.district_id"), nullable=False)
+    name = Column(String, nullable=False, index=True)
+
+    district = relationship("District", back_populates="neighborhoods")
+    donors = relationship("DonorProfile", back_populates="neighborhood")
+    institutions = relationship("Institution", back_populates="neighborhood")
+
+# --- 3. ANA KULLANICI TABLOSU ---
+
 class User(Base):
     __tablename__ = "users"
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -67,15 +89,13 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
 
-    # Profil İlişkileri
     donor_profile = relationship("DonorProfile", back_populates="user", uselist=False)
     staff_profile = relationship("StaffProfile", back_populates="user", uselist=False)
-    
-    # Genel İşlem Kayıtları (Account-wide logs)
     agent_logs = relationship("AgentLog", back_populates="user")
     notification_logs = relationship("NotificationLog", back_populates="user")
 
-# --- 3. DONÖR PROFİLİ (KİŞİSEL & TIBBİ ÖZET) ---
+# --- 4. DONÖR PROFİLİ ---
+
 class DonorProfile(Base):
     __tablename__ = "donor_profiles"
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), primary_key=True)
@@ -87,17 +107,46 @@ class DonorProfile(Base):
     kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
     son_bagis_tarihi = Column(DateTime, nullable=True)
     kan_verebilir_mi = Column(Boolean, default=True)
+    
+    # Lokasyon Verileri
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
+    neighborhood_id = Column(UUID(as_uuid=True), ForeignKey("neighborhoods.neighborhood_id"), nullable=True)
     fcm_token = Column(String, nullable=True)
 
     # İlişkiler
     user = relationship("User", back_populates="donor_profile")
+    neighborhood = relationship("Neighborhood", back_populates="donors")
     health_status = relationship("HealthStatus", back_populates="donor", uselist=False)
     ml_features = relationship("MLFeature", back_populates="donor", uselist=False)
     gamification = relationship("GamificationData", back_populates="donor", uselist=False)
     donation_history = relationship("DonationHistory", back_populates="donor")
 
-# --- 4. SAĞLIK ÇALIŞANI PROFİLİ ---
+# --- 5. HASTANE VE KURUMLAR ---
+
+class Institution(Base):
+    __tablename__ = "institutions"
+    kurum_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kurum_adi = Column(String, nullable=False, index=True)
+    tipi = Column(SQLEnum(InstitutionTypeEnum), nullable=False) 
+    parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
+    
+    # Konum ve Adres (İlçe string'den ID'ye çekildi)
+    konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
+    district_id = Column(UUID(as_uuid=True), ForeignKey("districts.district_id"), nullable=True)
+    neighborhood_id = Column(UUID(as_uuid=True), ForeignKey("neighborhoods.neighborhood_id"), nullable=True)
+    tam_adres = Column(String, nullable=False) 
+
+    # İlişkiler
+    district = relationship("District", back_populates="institutions")
+    neighborhood = relationship("Neighborhood", back_populates="institutions")
+    sub_units = relationship(
+        "Institution", 
+        backref=backref('parent', remote_side=[kurum_id]),
+        cascade="all, delete-orphan"
+    )
+
+# --- 6. DİĞER PROFİLLER VE SİSTEM TABLOLARI ---
+
 class StaffProfile(Base):
     __tablename__ = "staff_profiles"
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), primary_key=True)
@@ -109,7 +158,6 @@ class StaffProfile(Base):
     user = relationship("User", back_populates="staff_profile")
     institution = relationship("Institution")
 
-# --- 5. TIBBİ ENGEL TABLOSU ---
 class HealthStatus(Base):
     __tablename__ = "health_status"
     form_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -121,64 +169,21 @@ class HealthStatus(Base):
     
     donor = relationship("DonorProfile", back_populates="health_status")
 
-# --- 6. HASTANE VE KURUMLAR ---
-class Institution(Base):
-    __tablename__ = "institutions"
-    
-    # 1. Kimlik ve Temel Bilgiler
-    # Not: Verinizdeki 'ID' alanı veritabanında 'kurum_id' UUID olarak eşleşir.
-    kurum_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    
-    # Verideki 'ADI' alanı
-    kurum_adi = Column(String, nullable=False, index=True)
-    
-    # Verideki 'TIPI' alanı (Enum kullanımı veri güvenliğini artırır)
-    tipi = Column(SQLEnum(InstitutionTypeEnum), nullable=False) 
-    
-    # 2. Akıllı Hiyerarşi (Parent-Child)
-    # Verideki 'PARENT_ID' değeri bu kolona referans verir.
-    parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
-    
-    # 3. Konum ve Adres Verisi
-    # Verideki 'ENLEM' ve 'BOYLAM' değerleri bu geometrik kolonda birleştirilir.
-    konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
-    
-    # Verideki 'ILCE' alanı
-    ilce = Column(String, nullable=False, index=True) 
-    
-    # Verideki 'TAM_ADRES' alanı
-    tam_adres = Column(String, nullable=False) 
-
-    # 4. İlişkiler (SQLAlchemy Magic)
-    # Bir kurumun altındaki ek hizmet binalarını (sub_units) otomatik getirir.
-    sub_units = relationship(
-        "Institution", 
-        backref=backref('parent', remote_side=[kurum_id]),
-        cascade="all, delete-orphan"
-    )
-
-# --- 7. KAN TALEPLERİ ---
 class BloodRequest(Base):
     __tablename__ = "blood_requests"
     talep_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     kurum_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"))
-    
-    # KRİTİK EKLEME: Talebi hangi personelin açtığını takip etmek için
     olusturan_personel_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
-    
     istenen_kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
     unite_sayisi = Column(Integer, nullable=False)
     aciliyet_durumu = Column(SQLEnum(UrgencyEnum), default=UrgencyEnum.NORMAL)
     durum = Column(SQLEnum(RequestStatusEnum), default=RequestStatusEnum.AKTIF)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
 
-    # İlişkiler: Admin loglarında "Hangi staff açtı?" sorusunun cevabı için
     personel = relationship("User", foreign_keys=[olusturan_personel_id])
     institution = relationship("Institution")
-    # Bu talebe bağlı bildirimler (Kimlere öneri gittiğini buradan göreceğiz)
     bildirimler = relationship("NotificationLog", back_populates="blood_request")
 
-# --- 8. BAĞIŞ GEÇMİŞİ ---
 class DonationHistory(Base):
     __tablename__ = "donation_history"
     bagis_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -190,7 +195,6 @@ class DonationHistory(Base):
 
     donor = relationship("DonorProfile", back_populates="donation_history")
 
-# --- 9. ML ÖZELLİK MÜHENDİSLİĞİ ---
 class MLFeature(Base):
     __tablename__ = "ml_features"
     user_id = Column(UUID(as_uuid=True), ForeignKey("donor_profiles.user_id"), primary_key=True)
@@ -203,7 +207,6 @@ class MLFeature(Base):
 
     donor = relationship("DonorProfile", back_populates="ml_features")
 
-# --- 10. OYUNLAŞTIRMA ---
 class GamificationData(Base):
     __tablename__ = "gamification_data"
     user_id = Column(UUID(as_uuid=True), ForeignKey("donor_profiles.user_id"), primary_key=True)
@@ -213,7 +216,6 @@ class GamificationData(Base):
 
     donor = relationship("DonorProfile", back_populates="gamification")
 
-# --- 11. AI AGENT LOGLARI ---
 class AgentLog(Base):
     __tablename__ = "agent_logs"
     log_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -225,20 +227,14 @@ class AgentLog(Base):
 
     user = relationship("User", back_populates="agent_logs")
 
-# --- 12. BİLDİRİM LOGLARI ---
 class NotificationLog(Base):
     __tablename__ = "notification_logs"
     log_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False) # Bildirim giden Donör
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=False)
-    
-    # ML Bilgisi: Admin'in "ML kimi neden önerdi?" kısmını görmesi için
-    ml_skoru_o_an = Column(Float, nullable=True) # Öneri anındaki tahmin skoru
-    
+    ml_skoru_o_an = Column(Float, nullable=True) 
     gonderim_zamani = Column(DateTime, default=datetime.utcnow)
     iletilme_durumu = Column(SQLEnum(NotificationDeliveryEnum), nullable=False)
-    
-    # Staff'ın göreceği reaksiyonlar
     kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), default=NotificationReactionEnum.GORMEZDEN_GELDI) 
     reaksiyon_zamani = Column(DateTime, nullable=True) 
 

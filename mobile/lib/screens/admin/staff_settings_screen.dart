@@ -24,7 +24,7 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
   late TextEditingController _customTitleCtrl;
   
   late bool _isActive;
-  Institution? _selectedInstitution; // Null safety için nullable yapıldı
+  Institution? _selectedInstitution; 
   
   bool _isSubmitting = false;
   bool _isDeleting = false;
@@ -106,7 +106,8 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                         setDialogState(() {
                           String query = _normalizeTr(val);
                           filteredList = widget.allInstitutions.where((inst) {
-                            return _normalizeTr(inst.ad).contains(query) || _normalizeTr(inst.ilce).contains(query);
+                            // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
+                            return _normalizeTr(inst.ad).contains(query) || _normalizeTr(inst.ilceAdi).contains(query);
                           }).toList();
                         });
                       },
@@ -128,7 +129,8 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                                 color: inst.tipi == "Kan Merkezi" ? Colors.red : Colors.blue,
                               ),
                               title: Text(inst.ad, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                              subtitle: Text(inst.ilce, style: const TextStyle(fontSize: 12)),
+                              // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
+                              subtitle: Text(inst.ilceAdi, style: const TextStyle(fontSize: 12)),
                               onTap: () {
                                 setState(() {
                                   _selectedInstitution = inst;
@@ -177,11 +179,10 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         "ad_soyad": _nameCtrl.text.trim(),
         "email": _emailCtrl.text.trim(),
         "unvan": finalTitle,
-        "kurum_id": _selectedInstitution!.id,
+        "kurum_id": _selectedInstitution!.id.toString(), // YENİ: UUID güvencesi
         "is_active": _isActive,
       };
 
-      // Sadece şifre girilmişse şifreyi güncelle (backend kabul ediyorsa)
       if (_passwordCtrl.text.trim().isNotEmpty) {
         if (_passwordCtrl.text.trim().length < 6) {
           setState(() {
@@ -272,14 +273,13 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
     }
   }
 
-  // --- MODERN TEXTFIELD MİMARİSİ ---
   Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {bool isPassword = false, List<TextInputFormatter>? formatters}) {
     return TextField(
       controller: controller,
       obscureText: isPassword,
       inputFormatters: formatters,
-      enabled: !_isSubmitting && !_isDeleting, // İşlem sırasında kutuları kilitle
-      onChanged: (v) => setState(() => _formErrorMessage = null), // Yazı yazılınca hatayı sil
+      enabled: !_isSubmitting && !_isDeleting,
+      onChanged: (v) => setState(() => _formErrorMessage = null),
       decoration: InputDecoration(
         labelText: hint,
         hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
@@ -306,7 +306,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- 1. HESAP ERİŞİMİ ---
             const Text("Hesap Erişimi (Yetkilendirme)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
             Container(
@@ -326,7 +325,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
             ),
             const SizedBox(height: 25),
 
-            // --- 2. GÖREV YAPTIĞI KURUM ---
             const Text("Görev Yaptığı Kurum", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
             GestureDetector(
@@ -349,7 +347,8 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                     Expanded(
                       child: Text(
                         _selectedInstitution != null 
-                            ? "${_selectedInstitution!.ad} (${_selectedInstitution!.ilce})" 
+                            // YENİ: _selectedInstitution!.ilceAdi kullanıldı
+                            ? "${_selectedInstitution!.ad} (${_selectedInstitution!.ilceAdi})" 
                             : "Görev Yapacağı Kurumu Seç",
                         style: TextStyle(
                           color: _selectedInstitution != null ? Colors.blue.shade900 : Colors.grey.shade600, 
@@ -367,7 +366,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
             ),
             const SizedBox(height: 25),
 
-            // --- 3. KİMLİK VE GÜVENLİK BİLGİLERİ ---
             const Text("Kimlik ve Güvenlik Bilgileri", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 8),
             Container(
@@ -412,7 +410,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
             ),
             const SizedBox(height: 25),
 
-            // --- INLINE HATA GÖSTERGE ALANI ---
             if (_formErrorMessage != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 16),
@@ -436,7 +433,6 @@ class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
                 ),
               ),
 
-            // --- 4. TEHLİKELİ ALAN (SİLME) ---
             const Text("Tehlikeli İşlemler", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
             const SizedBox(height: 8),
             Container(

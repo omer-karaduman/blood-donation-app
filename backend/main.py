@@ -17,7 +17,7 @@ from typing import List
 # Veritabanı tablolarını otomatik oluştur
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Blood Donation AI API - V2 (Optimized)")
+app = FastAPI(title="Blood Donation AI API - V3 (Relational Location Optimized)")
 
 # CORS Ayarları: Mobil ve Web erişimi için tüm kaynaklara izin veriliyor
 app.add_middleware(
@@ -51,23 +51,38 @@ else:
 def read_root():
     return {"status": "Online", "message": "Akıllı Kan Bağışı Sistemi Aktif."}
 
+# ======================================================================
+# --- KONUM SERVİSLERİ (YENİ) ---
+# ======================================================================
+
+@app.get("/locations/districts", response_model=List[schemas.DistrictResponse])
+def get_districts(db: Session = Depends(get_db)):
+    """İzmir'in tüm ilçelerini listeler."""
+    return db.query(models.District).order_by(models.District.name).all()
+
+@app.get("/locations/districts/{district_id}/neighborhoods", response_model=List[schemas.NeighborhoodResponse])
+def get_neighborhoods(district_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Seçilen ilçeye ait mahalleleri listeler."""
+    return db.query(models.Neighborhood).filter(
+        models.Neighborhood.district_id == district_id
+    ).order_by(models.Neighborhood.name).all()
+
 # --- KİMLİK DOĞRULAMA (LOGIN) ---
 @app.post("/login", response_model=schemas.UserResponse)
 def login(login_data: schemas.LoginRequest, db: Session = Depends(get_db)):
-    """Kullanıcı e-posta ve şifresini doğrular, profil bilgileriyle döner."""
-    
-    # joinedload kullanarak ilişkili tabloları (DonorProfile, StaffProfile) da tek seferde çekiyoruz!
+    """Kullanıcı e-posta ve şifresini doğrular, rol bilgisini döner."""
     user = db.query(models.User)\
              .options(joinedload(models.User.donor_profile), joinedload(models.User.staff_profile))\
              .filter(models.User.email == login_data.email).first()
     
+    # Not: Gerçek projede şifreler passlib gibi bir kütüphane ile doğrulanmalıdır
     if not user or user.hashed_password != login_data.password:
         raise HTTPException(status_code=401, detail="E-posta veya şifre hatalı.")
     
     if not user.is_active:
         raise HTTPException(status_code=403, detail="Hesabınız askıya alınmıştır.")
         
-    return user
+    return user 
 
 # ======================================================================
 # --- 1. PERSONEL (STAFF) İŞ AKIŞI: KAN TALEBİ VE OTOMATİK ML ---
@@ -165,7 +180,7 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
         donor_yanitlari = []
         for b in r.bildirimler:
             donor_yanitlari.append({
-                "donor_ad_soyad": b.user.donor_profile.ad_soyad,
+                "donor_ad_soyad": b.user.donor_profile.ad_soyad if b.user and b.user.donor_profile else "Bilinmeyen Donör",
                 "reaksiyon": b.kullanici_reaksiyonu,
                 "reaksiyon_zamani": b.reaksiyon_zamani
             })
@@ -214,7 +229,7 @@ def get_admin_logs(db: Session = Depends(get_db)):
 
 @app.post("/register/donor/", response_model=schemas.UserResponse)
 def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
-    """Yeni donör kaydı oluşturur."""
+    """Yeni donör kaydı oluşturur (İlişkisel Konum Destekli)."""
     db_user = db.query(models.User).filter(models.User.email == user_in.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email kullanımda.")
@@ -223,6 +238,7 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.flush()
 
+    # DonorProfile verisi - latitude ve longitude hariç (WKTElement kullanılacak)
     donor_data = user_in.model_dump(exclude={"email", "password", "latitude", "longitude"})
     new_profile = models.DonorProfile(user_id=new_user.user_id, **donor_data)
 
@@ -230,20 +246,30 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
         new_profile.konum = WKTElement(f"POINT({user_in.longitude} {user_in.latitude})", srid=4326)
 
     db.add(new_profile)
+    
+    # ML Özelliklerini ilklendir
+    new_features = models.MLFeature(user_id=new_user.user_id)
+    db.add(new_features)
+
+    # Oyunlaştırma Verisini İlklendir
+    new_gamification = models.GamificationData(user_id=new_user.user_id)
+    db.add(new_gamification)
+
     db.commit()
     db.refresh(new_user)
     return new_user
 
 @app.get("/institutions/", response_model=list[schemas.InstitutionResponse])
-def get_institutions(ilce: str = None, tipi: str = None, db: Session = Depends(get_db)):
-    """Kurumları ilçe veya tipine göre filtreleyerek listeler."""
-    query = db.query(models.Institution)
-    if ilce and ilce != "Tümü":
-        def upper_tr(text): return text.replace("i", "İ").replace("ı", "I").upper()
-        query = query.filter(models.Institution.ilce.ilike(f"%{upper_tr(ilce)}%"))
-    
-    if tipi and tipi != "Tümü":
-        query = query.filter(or_(models.Institution.tipi == tipi, models.Institution.sub_units.any(models.Institution.tipi == tipi)))
+def get_institutions(district_id: uuid.UUID = None, tipi: models.InstitutionTypeEnum = None, db: Session = Depends(get_db)):
+    """Kurumları ilçe ID'si veya tipine göre filtreler."""
+    query = db.query(models.Institution).options(
+        joinedload(models.Institution.district),
+        joinedload(models.Institution.neighborhood)
+    )
+    if district_id:
+        query = query.filter(models.Institution.district_id == district_id)
+    if tipi:
+        query = query.filter(models.Institution.tipi == tipi)
     return query.all()
 
 @app.get("/staff/")
@@ -310,7 +336,6 @@ def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Silindi"}
 
-# backend/main.py içerisine eklenecek
 @app.get("/institutions/{institution_id}/staff")
 def get_institution_staff(institution_id: uuid.UUID, db: Session = Depends(get_db)):
     """Sadece belirli bir kuruma kayıtlı personelleri listeler."""
@@ -330,20 +355,22 @@ def get_institution_staff(institution_id: uuid.UUID, db: Session = Depends(get_d
 
 @app.post("/institutions/", response_model=schemas.InstitutionResponse)
 def create_institution(inst_in: schemas.InstitutionCreate, db: Session = Depends(get_db)):
-    """Adminin yeni bir hastane veya kan merkezi eklemesini sağlar."""
+    """Adminin yeni bir hastane veya kan merkezi eklemesini sağlar (İlişkisel konumla)."""
     new_inst = models.Institution(
         kurum_adi=inst_in.kurum_adi,
         tipi=inst_in.tipi,
-        ilce=inst_in.ilce,
+        district_id=inst_in.district_id,
+        neighborhood_id=inst_in.neighborhood_id,
         tam_adres=inst_in.tam_adres,
         parent_id=inst_in.parent_id
     )
+    if inst_in.latitude is not None and inst_in.longitude is not None:
+        new_inst.konum = WKTElement(f"POINT({inst_in.longitude} {inst_in.latitude})", srid=4326)
+
     db.add(new_inst)
     db.commit()
     db.refresh(new_inst)
     return new_inst
-
-
 
 @app.get("/users/{user_id}/profile")
 def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
@@ -356,7 +383,8 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
     if user.role.name == "DONOR" and user.donor_profile:
         return {
             "ad_soyad": user.donor_profile.ad_soyad,
-            "kan_grubu": user.donor_profile.kan_grubu
+            "kan_grubu": user.donor_profile.kan_grubu,
+            "mahalle": user.donor_profile.neighborhood.name if user.donor_profile.neighborhood else "Belirtilmemiş"
         }
     
     # Personel ise personel bilgilerini dön
@@ -370,3 +398,32 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
     
     # Admin ise
     return {"ad_soyad": "Sistem Yöneticisi", "kan_grubu": "-"}
+
+@app.get("/donor/{user_id}/feed")
+def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Donörün ana sayfasında (Feed) göreceği aktif kan taleplerini listeler."""
+    
+    # Aktif olan tüm kan taleplerini (en yeniden eskiye doğru) hastane bilgisiyle çekiyoruz
+    active_requests = db.query(models.BloodRequest)\
+                        .options(
+                            joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
+                            joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
+                        )\
+                        .filter(models.BloodRequest.durum == models.RequestStatusEnum.AKTIF)\
+                        .order_by(models.BloodRequest.olusturma_tarihi.desc())\
+                        .all()
+    
+    feed_data = []
+    for req in active_requests:
+        feed_data.append({
+            "talep_id": req.talep_id,
+            "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
+            "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
+            "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
+            "istenen_kan_grubu": req.istenen_kan_grubu,
+            "unite_sayisi": req.unite_sayisi,
+            "aciliyet_durumu": req.aciliyet_durumu,
+            "olusturma_tarihi": req.olusturma_tarihi
+        })
+        
+    return feed_data

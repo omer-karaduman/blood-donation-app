@@ -11,6 +11,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # EKLENEN KISIM: Veritabanının gerçekten bağlantı kabul edip etmediğini denetler
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d blood_donation"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
@@ -19,10 +25,12 @@ services:
       - ./backend:/app
     ports:
       - "8000:8000"
-    depends_on:
-      - db
     environment:
       DATABASE_URL: postgresql://admin:password123@db:5432/blood_donation
+    # EKLENEN KISIM: Sadece "db" servisini değil, onun "sağlıklı" olmasını bekler
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

@@ -15,25 +15,21 @@ class InstitutionManagementScreen extends StatefulWidget {
 }
 
 class _InstitutionManagementScreenState extends State<InstitutionManagementScreen> {
-  String selectedDistrict = "Tümü";
+  // YENİ: Dinamik filtreleme değişkenleri
+  District? selectedFilterDistrict; // Null olması "Tümü" anlamına gelir
   String selectedType = "Tümü";
 
   // --- KONTROLCÜLER ---
   final TextEditingController _nameSearchController = TextEditingController();
   final TextEditingController _districtSearchController = TextEditingController();
+  
   late Future<List<Institution>> _institutionsFuture;
-
-  final List<String> districts = [
-    "Tümü", "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", 
-    "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir", 
-    "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa", 
-    "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", 
-    "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
-  ];
+  List<District> _districtsList = []; // Backend'den çekilecek
 
   @override
   void initState() {
     super.initState();
+    _fetchDistricts(); // Önce ilçeleri çek
     _refreshData();
   }
 
@@ -44,6 +40,24 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     super.dispose();
   }
 
+  // --- YENİ: İLÇELERİ BACKEND'DEN ÇEK ---
+  Future<void> _fetchDistricts() async {
+    try {
+      // ApiConstants.baseUrl varsayımıyla (kendi proje yapılandırmana göre ayarlayabilirsin)
+      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _districtsList = data.map((d) => District.fromJson(d)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("İlçe verisi çekilemedi: $e");
+    }
+  }
+
   void _refreshData() {
     setState(() {
       _institutionsFuture = fetchInstitutions();
@@ -52,7 +66,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
 
   Future<List<Institution>> fetchInstitutions() async {
     var queryParams = <String>[];
-    if (selectedDistrict != "Tümü") queryParams.add('ilce=$selectedDistrict');
+    // YENİ: String isim yerine UUID gönderiyoruz
+    if (selectedFilterDistrict != null) queryParams.add('district_id=${selectedFilterDistrict!.id}');
     if (selectedType != "Tümü") queryParams.add('tipi=$selectedType');
 
     String queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
@@ -87,57 +102,148 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     final nameCtrl = TextEditingController();
     final addrCtrl = TextEditingController();
     String type = "Hastane";
-    String dist = districts[1]; // Varsayılan ilk ilçe
+    
+    // Form içi dinamik lokasyon değişkenleri
+    District? formSelectedDistrict;
+    Neighborhood? formSelectedNeighborhood;
+    List<Neighborhood> formNeighborhoods = [];
+    bool isLoadingNeighborhoods = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-          left: 24, right: 24, top: 20,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
-              const SizedBox(height: 20),
-              const Text("Yeni Kurum Kaydı", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 25),
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Kurum Adı", prefixIcon: Icon(Icons.business))),
-              const SizedBox(height: 15),
-              TextField(controller: addrCtrl, decoration: const InputDecoration(labelText: "Tam Adres", prefixIcon: Icon(Icons.map))),
-              const SizedBox(height: 15),
-              DropdownButtonFormField<String>(
-                value: type,
-                items: ["Hastane", "Kan Merkezi"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                onChanged: (v) => type = v!,
-                decoration: const InputDecoration(labelText: "Kurum Tipi"),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setModalState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
               ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 55,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF263238), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  onPressed: () {
-                    // Backend POST işlemi buraya gelecek
-                    Navigator.pop(context);
-                    _refreshData();
-                  },
-                  child: const Text("Kaydet", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+                left: 24, right: 24, top: 20,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(width: 50, height: 5, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10))),
+                    const SizedBox(height: 20),
+                    const Text("Yeni Kurum Kaydı", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 25),
+                    
+                    TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: "Kurum Adı", prefixIcon: Icon(Icons.business))),
+                    const SizedBox(height: 15),
+                    
+                    DropdownButtonFormField<String>(
+                      value: type,
+                      items: ["Hastane", "Kan Merkezi"].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      onChanged: (v) => setModalState(() => type = v!),
+                      decoration: const InputDecoration(labelText: "Kurum Tipi", prefixIcon: Icon(Icons.local_hospital)),
+                    ),
+                    const SizedBox(height: 15),
+
+                    // YENİ: Dinamik İlçe Seçici
+                    DropdownButtonFormField<District>(
+                      value: formSelectedDistrict,
+                      hint: const Text("İlçe Seçin"),
+                      decoration: const InputDecoration(prefixIcon: Icon(Icons.location_city)),
+                      items: _districtsList.map((d) => DropdownMenuItem(value: d, child: Text(d.name))).toList(),
+                      onChanged: (val) async {
+                        if (val == null) return;
+                        setModalState(() {
+                          formSelectedDistrict = val;
+                          formSelectedNeighborhood = null;
+                          formNeighborhoods = [];
+                          isLoadingNeighborhoods = true;
+                        });
+
+                        // Seçilen ilçenin mahallelerini çek
+                        try {
+                          final res = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts/${val.id}/neighborhoods'));
+                          if (res.statusCode == 200) {
+                            final List<dynamic> nData = json.decode(utf8.decode(res.bodyBytes));
+                            setModalState(() {
+                              formNeighborhoods = nData.map((n) => Neighborhood.fromJson(n)).toList();
+                            });
+                          }
+                        } catch (e) {
+                          debugPrint("Mahalle hatası: $e");
+                        } finally {
+                          setModalState(() => isLoadingNeighborhoods = false);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 15),
+
+                    // YENİ: Dinamik Mahalle Seçici
+                    isLoadingNeighborhoods 
+                      ? const CircularProgressIndicator()
+                      : DropdownButtonFormField<Neighborhood>(
+                          value: formSelectedNeighborhood,
+                          hint: const Text("Mahalle Seçin"),
+                          decoration: const InputDecoration(prefixIcon: Icon(Icons.location_on)),
+                          items: formNeighborhoods.map((n) => DropdownMenuItem(value: n, child: Text(n.name))).toList(),
+                          onChanged: formNeighborhoods.isEmpty ? null : (val) {
+                            setModalState(() => formSelectedNeighborhood = val);
+                          },
+                        ),
+                    const SizedBox(height: 15),
+
+                    TextField(controller: addrCtrl, decoration: const InputDecoration(labelText: "Tam Adres", prefixIcon: Icon(Icons.map))),
+                    const SizedBox(height: 30),
+
+                    SizedBox(
+                      width: double.infinity,
+                      height: 55,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF263238), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        onPressed: () async {
+                          if (formSelectedDistrict == null || formSelectedNeighborhood == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lütfen ilçe ve mahalle seçiniz.")));
+                            return;
+                          }
+
+                          // YENİ: Backend'e gönderilecek JSON (UUID formatında)
+                          final body = {
+                            "kurum_adi": nameCtrl.text.trim(),
+                            "tam_adres": addrCtrl.text.trim(),
+                            "tipi": type,
+                            "district_id": formSelectedDistrict!.id,
+                            "neighborhood_id": formSelectedNeighborhood!.id,
+                            "latitude": 38.42, // Geliştirmede İzmir merkez varsayılan
+                            "longitude": 27.14,
+                            "parent_id": null
+                          };
+
+                          try {
+                            final res = await http.post(
+                              Uri.parse(ApiConstants.institutionsEndpoint),
+                              headers: {"Content-Type": "application/json"},
+                              body: json.encode(body)
+                            );
+                            if (res.statusCode == 200) {
+                              Navigator.pop(context);
+                              _refreshData();
+                            } else {
+                              debugPrint("Hata: ${res.statusCode}");
+                            }
+                          } catch (e) {
+                            debugPrint("Post hatası: $e");
+                          }
+                        },
+                        child: const Text("Kaydet", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            );
+          }
+        );
+      },
     );
   }
 
@@ -188,7 +294,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
 
                 final List<Institution> processedData = allData.where((inst) {
                   final bool matchesName = _normalizeTr(inst.ad).contains(nameQuery);
-                  final bool matchesDistrict = _normalizeTr(inst.ilce).contains(districtQuery);
+                  // YENİ: Arama çubuğunda inst.ilce yerine inst.ilceAdi kullanıyoruz
+                  final bool matchesDistrict = _normalizeTr(inst.ilceAdi).contains(districtQuery);
                   return matchesName && matchesDistrict;
                 }).toList();
 
@@ -196,7 +303,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                 final List<Institution> rootInstitutions = processedData.where((inst) => inst.parentId == null).toList();
                 final List<Institution> subInstitutions = processedData.where((inst) => inst.parentId != null).toList();
                 
-                // Yetim çocukları (parent'ı filtreye takılmış olanlar) root'a ekle
                 final List<Institution> orphanInstitutions = subInstitutions.where((child) => 
                   !rootInstitutions.any((parent) => parent.id == child.parentId)
                 ).toList();
@@ -305,7 +411,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           ),
         ),
         title: Text(inst.ad, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.bold, fontSize: isChild ? 13 : 15)),
-        subtitle: Text("${inst.ilce} - ${inst.tamAdres}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        // YENİ: inst.ilceAdi kullanıldı
+        subtitle: Text("${inst.ilceAdi} - ${inst.tamAdres}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         trailing: const Icon(Icons.settings_outlined, size: 20, color: Colors.grey),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => InstitutionDetailScreen(institution: inst))),
       ),
@@ -319,12 +426,19 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
         child: DropdownButtonHideUnderline(
-          child: DropdownButton<String>(
-            value: selectedDistrict,
+          // YENİ: String yerine District nesnesi kullanılıyor
+          child: DropdownButton<District?>(
+            value: selectedFilterDistrict,
             isExpanded: true,
+            hint: const Text("Tüm İlçeler"),
             icon: const Icon(Icons.location_on_outlined, color: Colors.red),
-            items: districts.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-            onChanged: (val) { if (val != null) { selectedDistrict = val; _refreshData(); } },
+            items: [
+              const DropdownMenuItem<District?>(value: null, child: Text("Tüm İlçeler")),
+              ..._districtsList.map((d) => DropdownMenuItem(value: d, child: Text(d.name))),
+            ],
+            onChanged: (val) {
+              setState(() { selectedFilterDistrict = val; _refreshData(); });
+            },
           ),
         ),
       ),
@@ -343,7 +457,7 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
             ButtonSegment(value: "Kan Merkezi", label: Text("Merkez"), icon: Icon(Icons.bloodtype)),
           ],
           selected: {selectedType},
-          onSelectionChanged: (newSelection) { selectedType = newSelection.first; _refreshData(); },
+          onSelectionChanged: (newSelection) { setState(() { selectedType = newSelection.first; _refreshData(); }); },
           style: SegmentedButton.styleFrom(backgroundColor: Colors.white, selectedBackgroundColor: Colors.red.shade50, selectedForegroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
         ),
       ),

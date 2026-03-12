@@ -143,7 +143,8 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                               "email": emailCtrl.text.trim(),
                               "password": passwordCtrl.text.trim(),
                               "ad_soyad": nameCtrl.text.trim(),
-                              "kurum_id": widget.institution.id, 
+                              // YENİ: UUID güvencesi
+                              "kurum_id": widget.institution.id.toString(), 
                               "unvan": selectedTitle == "Diğer" ? customTitleCtrl.text : selectedTitle,
                               "personel_no": "P-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}"
                             };
@@ -222,11 +223,55 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Görevli Personeller", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  Text("${staffList.length} Personel", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
+                  // YENİ EKLENEN KISIM: Kurum Lokasyon ve Adres Kartı
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.location_on_rounded, color: themeColor, size: 28),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "${widget.institution.ilceAdi} / ${widget.institution.mahalleAdi}", 
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                widget.institution.tamAdres.isNotEmpty ? widget.institution.tamAdres : "Adres detayı bulunmuyor.", 
+                                style: TextStyle(color: Colors.grey.shade600, fontSize: 13, height: 1.4)
+                              ),
+                            ],
+                          ),
+                        )
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 25),
+                  
+                  // Personel Sayacı Başlığı
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Görevli Personeller", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: lightColor, borderRadius: BorderRadius.circular(20)),
+                        child: Text("${staffList.length} Personel", style: TextStyle(color: themeColor, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -234,7 +279,18 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
           isLoading
             ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
             : staffList.isEmpty
-              ? const SliverFillRemaining(child: Center(child: Text("Kayıtlı personel bulunamadı.")))
+              ? SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.people_outline, size: 60, color: Colors.grey.shade400),
+                        const SizedBox(height: 10),
+                        Text("Kayıtlı personel bulunamadı.", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                      ],
+                    ),
+                  )
+                )
               : SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   sliver: SliverList(
@@ -244,14 +300,22 @@ class _InstitutionDetailScreenState extends State<InstitutionDetailScreen> {
                         String ad = staff['ad_soyad'] ?? "İsimsiz";
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                          decoration: BoxDecoration(
+                            color: Colors.white, 
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+                          ),
                           child: ListTile(
-                            leading: CircleAvatar(backgroundColor: lightColor, child: Text(ad[0].toUpperCase(), style: TextStyle(color: themeColor))),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            leading: CircleAvatar(backgroundColor: lightColor, radius: 24, child: Text(ad[0].toUpperCase(), style: TextStyle(color: themeColor, fontWeight: FontWeight.bold, fontSize: 18))),
                             title: Text(ad, style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text("${staff['unvan']}\n${staff['email']}"),
+                            subtitle: Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text("${staff['unvan']}\n${staff['email']}", style: TextStyle(color: Colors.grey.shade600, height: 1.3)),
+                            ),
                             isThreeLine: true,
                             trailing: IconButton(
-                              icon: const Icon(Icons.settings),
+                              icon: Icon(Icons.settings, color: Colors.grey.shade400),
                               onPressed: () async {
                                 final res = await Navigator.push(context, MaterialPageRoute(builder: (context) => StaffSettingsScreen(staff: staff, allInstitutions: allInstitutions)));
                                 if (res == true) _fetchData();

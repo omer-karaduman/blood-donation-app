@@ -22,6 +22,14 @@ def seed_donors(num_donors=100):
 
     print(f"🚀 {num_donors} adet gerçekçi İzmirli donör veritabanına ekleniyor...")
     
+    # --- YENİ: VERİTABANINDAN GERÇEK MAHALLELERİ ÇEK ---
+    neighborhoods = db.query(models.Neighborhood).all()
+    if not neighborhoods:
+        print("⚠️ HATA: Veritabanında mahalle verisi bulunamadı!")
+        print("Lütfen sahte donör eklemeden önce İzmir ilçe/mahalle verilerini (izmir_data.json) yükleyin.")
+        db.close()
+        return
+
     try:
         for i in range(num_donors):
             # 1. Ana Kullanıcıyı (Auth) Oluştur
@@ -32,6 +40,9 @@ def seed_donors(num_donors=100):
             )
             db.add(new_user)
             db.flush() # Veritabanından user_id'yi al
+            
+            # Veritabanından rastgele geçerli bir mahalle seç
+            random_neighborhood = random.choice(neighborhoods)
             
             # 2. Donör Profilini Oluştur (İzmir Koordinatları İçerir)
             # İzmir: Lat(38.3 - 38.6), Lon(26.9 - 27.3)
@@ -60,12 +71,12 @@ def seed_donors(num_donors=100):
                 kan_grubu=random.choice(blood_types),
                 son_bagis_tarihi=last_donation,
                 kan_verebilir_mi=can_donate,
-                konum=point
+                konum=point,
+                neighborhood_id=random_neighborhood.neighborhood_id # YENİ: İlişkisel mahalle ataması
             )
             db.add(new_profile)
 
             # 3. ML Özelliklerini (MLFeature) Oluştur
-            # ML modelinin eğitildiği mantığa uygun veriler üretiyoruz
             total_notif = random.randint(1, 20)
             positive_responses = random.randint(0, total_notif)
             success_donations = random.randint(0, positive_responses)
@@ -81,8 +92,16 @@ def seed_donors(num_donors=100):
             )
             db.add(new_ml_feature)
 
+            # 4. YENİ: Oyunlaştırma (Gamification) Verisini İlklendir
+            new_gamification = models.GamificationData(
+                user_id=new_user.user_id,
+                toplam_puan=random.randint(0, 1500), # Sahte puanlar
+                seviye=random.randint(1, 10)         # Sahte seviyeler
+            )
+            db.add(new_gamification)
+
         db.commit()
-        print("✅ Başarılı! 100 gerçekçi donör sisteme eklendi.")
+        print(f"✅ Başarılı! {num_donors} gerçekçi donör sisteme eklendi.")
     except Exception as e:
         db.rollback()
         print(f"❌ Bir hata oluştu: {e}")

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../constants/api_constants.dart';
+import '../models/institution.dart'; 
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -26,27 +27,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final _birthDateController = TextEditingController(); // YENİ: Doğum Tarihi
+  final _birthDateController = TextEditingController();
 
   // --- ADIM 2: İLETİŞİM VE KONUM ---
   final _phoneController = TextEditingController();
-  final _addressController = TextEditingController();
-  String? _selectedDistrict;
   
-  final List<String> izmirDistricts = [
-    "Aliağa", "Balçova", "Bayındır", "Bayraklı", "Bergama", "Beydağ", 
-    "Bornova", "Buca", "Çeşme", "Çiğli", "Dikili", "Foça", "Gaziemir", 
-    "Güzelbahçe", "Karabağlar", "Karaburun", "Karşıyaka", "Kemalpaşa", 
-    "Kınık", "Kiraz", "Konak", "Menderes", "Menemen", "Narlıdere", 
-    "Ödemiş", "Seferihisar", "Selçuk", "Tire", "Torbalı", "Urla"
-  ];
+  District? _selectedDistrict;
+  Neighborhood? _selectedNeighborhood;
+  List<District> _districtsList = [];
+  List<Neighborhood> _neighborhoodsList = [];
+  bool _isLoadingNeighborhoods = false;
 
   // --- ADIM 3: SAĞLIK BİLGİLERİ ---
   String? _selectedBloodType;
-  String? _selectedGender; // Backend'e 'E' veya 'K' gidecek
-  final _weightController = TextEditingController(); // YENİ: Kilo bilgisi
+  String? _selectedGender; 
+  final _weightController = TextEditingController();
 
   final List<String> bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDistricts(); 
+  }
 
   @override
   void dispose() {
@@ -55,18 +58,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordController.dispose();
     _birthDateController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
     _weightController.dispose();
     super.dispose();
   }
 
-  // YENİ: Takvimden Doğum Tarihi Seçme Fonksiyonu
+  Future<void> _fetchDistricts() async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _districtsList = data.map((d) => District.fromJson(d)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("İlçe verisi çekilemedi: $e");
+    }
+  }
+
+  Future<void> _fetchNeighborhoods(String districtId) async {
+    if (!mounted) return;
+    setState(() {
+      _isLoadingNeighborhoods = true;
+      _selectedNeighborhood = null;
+      _neighborhoodsList = [];
+    });
+
+    try {
+      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts/$districtId/neighborhoods'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+        if (mounted) {
+          setState(() {
+            _neighborhoodsList = data.map((n) => Neighborhood.fromJson(n)).toList();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint("Mahalle verisi çekilemedi: $e");
+    } finally {
+      if (mounted) setState(() => _isLoadingNeighborhoods = false);
+    }
+  }
+
   Future<void> _selectBirthDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: DateTime(2000), // Varsayılan açılış yılı
-      firstDate: DateTime(1950), // En eski tarih
-      lastDate: DateTime.now().subtract(const Duration(days: 6570)), // En az 18 yaşında olmalı kuralı (yaklaşık)
+      initialDate: DateTime(2000), 
+      firstDate: DateTime(1950), 
+      lastDate: DateTime.now().subtract(const Duration(days: 6570)), 
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -83,7 +125,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (picked != null) {
       setState(() {
-        // Backend için YYYY-MM-DD formatına çeviriyoruz
         _birthDateController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
@@ -102,6 +143,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_currentStep > 0) setState(() => _currentStep--);
   }
 
+  // ==========================================================
+  // AKILLI KAYIT (GEOCODING) İŞLEMİ (OSM + 3 Kademeli Arama)
+  // ==========================================================
   Future<void> _submitRegistration() async {
     if (!_formKey3.currentState!.validate()) return;
     if (_selectedBloodType == null || _selectedGender == null) {
@@ -111,19 +155,80 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     setState(() => _isLoading = true);
 
+    double? targetLat;
+    double? targetLon;
+
+    // 1. ADRESİ KOORDİNATA ÇEVİR (Akıllı Türkçe Metin Filtresi ile)
+    try {
+      String dName = _selectedDistrict?.name ?? "";
+      String rawNName = _selectedNeighborhood?.name ?? "";
+      
+      // HARİKA HİLE: Dart diline uygun Case-Insensitive (Büyük/Küçük harf duyarsız) regex
+      String cleanNName = rawNName.replaceAll(RegExp(r'\s+Mah\.?$|\s+Mahallesi$', caseSensitive: false), '').trim();
+
+      // Nominatim için özel User-Agent (Bloklanmamak için önemli)
+      final headers = {'User-Agent': 'IzmirBloodDonationApp/1.0 (StudentProject)'};
+
+      // AŞAMA 1: Tam "Mahallesi" ekiyle ara (OSM bunu çok sever)
+      String query1 = "$cleanNName Mahallesi, $dName, İzmir, Türkiye";
+      debugPrint("Koordinat aranıyor (Aşama 1): $query1");
+      
+      var response = await http.get(Uri.parse("https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query1)}&format=json&limit=1"), headers: headers);
+      var data = json.decode(response.body);
+
+      if (data.isNotEmpty) {
+        targetLat = double.parse(data[0]['lat']);
+        targetLon = double.parse(data[0]['lon']);
+        debugPrint("✅ Aşama 1 Başarılı! Mahalle bulundu: $targetLat, $targetLon");
+      } else {
+        
+        // AŞAMA 2: Sadece yalın isimle ara (Örn: "Aşağıılgındere, Bergama" - Köyden mahalleye dönenler için)
+        String query2 = "$cleanNName, $dName, İzmir, Türkiye";
+        debugPrint("Mahalle ekiyle bulunamadı. Koordinat aranıyor (Aşama 2): $query2");
+        
+        response = await http.get(Uri.parse("https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query2)}&format=json&limit=1"), headers: headers);
+        data = json.decode(response.body);
+
+        if (data.isNotEmpty) {
+          targetLat = double.parse(data[0]['lat']);
+          targetLon = double.parse(data[0]['lon']);
+          debugPrint("✅ Aşama 2 Başarılı! Belde/Köy bulundu: $targetLat, $targetLon");
+        } else {
+          
+          // AŞAMA 3: Hiçbiri bulunmazsa SADECE İLÇE merkezini ara
+          String query3 = "$dName, İzmir, Türkiye";
+          debugPrint("Yalın isim de bulunamadı. Sadece İlçe aranıyor (Aşama 3): $query3");
+          
+          response = await http.get(Uri.parse("https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query3)}&format=json&limit=1"), headers: headers);
+          data = json.decode(response.body);
+
+          if (data.isNotEmpty) {
+            targetLat = double.parse(data[0]['lat']);
+            targetLon = double.parse(data[0]['lon']);
+            debugPrint("⚠️ Aşama 3 Başarılı! Mahalle bulunamadı, İlçe merkezi atandı: $targetLat, $targetLon");
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("❌ OpenStreetMap servisine ulaşılamadı. Hata: $e");
+      targetLat = 38.4237; 
+      targetLon = 27.1428; // Konak Meydan
+    }
+
+    // 2. BACKEND'E VERİYİ GÖNDER
     try {
       final body = {
         "ad_soyad": _nameController.text.trim(),
         "email": _emailController.text.trim(),
         "password": _passwordController.text.trim(),
-        "dogum_tarihi": _birthDateController.text.trim(), // EKLENDİ
+        "dogum_tarihi": _birthDateController.text.trim(), 
         "telefon": _phoneController.text.trim(),
-        "il": "İzmir",
-        "ilce": _selectedDistrict, 
-        "tam_adres": _addressController.text.trim(),
         "kan_grubu": _selectedBloodType,
-        "cinsiyet": _selectedGender, // 'E' veya 'K' olarak gidecek
-        "kilo": double.tryParse(_weightController.text.trim()) ?? 0.0, // EKLENDİ
+        "cinsiyet": _selectedGender, 
+        "kilo": double.tryParse(_weightController.text.trim()) ?? 0.0,
+        "neighborhood_id": _selectedNeighborhood?.id,
+        "latitude": targetLat, 
+        "longitude": targetLon, 
       };
 
       final response = await http.post(
@@ -230,7 +335,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         children: [
           _buildStepCircle(0, Icons.person_outline, "Kimlik"),
           _buildStepLine(0),
-          _buildStepCircle(1, Icons.location_on_outlined, "İletişim"),
+          _buildStepCircle(1, Icons.location_on_outlined, "Bölge"), 
           _buildStepLine(1),
           _buildStepCircle(2, Icons.favorite_border, "Sağlık"),
         ],
@@ -302,10 +407,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
 
-            // YENİ: DOĞUM TARİHİ ALANI
             TextFormField(
               controller: _birthDateController,
-              readOnly: true, // Klavyeyi açmaz, takvim fonksiyonunu tetikler
+              readOnly: true, 
               onTap: () => _selectBirthDate(context),
               validator: (value) => value!.isEmpty ? "Doğum tarihi zorunludur" : null,
               decoration: const InputDecoration(
@@ -338,14 +442,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 40),
 
-            ElevatedButton(onPressed: _nextStep, child: const Text("Devam Et (İletişim)")),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(onPressed: _nextStep, child: const Text("Devam Et (İletişim)"))
+            ),
           ],
         ),
       ),
     );
   }
 
-  // --- ADIM 2: İLETİŞİM BİLGİLERİ FORM ---
+  // --- ADIM 2: BÖLGE VE İLETİŞİM BİLGİLERİ FORM ---
   Widget _buildStep2() {
     return SingleChildScrollView(
       key: const ValueKey(1),
@@ -355,9 +463,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("İletişim & Konum", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+            const Text("İletişim & Bölge", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
             const SizedBox(height: 5),
-            const Text("Acil kan ihtiyaçlarında size ulaşabilmemiz için.", style: TextStyle(color: Colors.grey)),
+            const Text("Size en yakın yardım çağrılarını iletebilmemiz için yaşadığınız bölgeyi seçiniz.", style: TextStyle(color: Colors.grey)),
             const SizedBox(height: 30),
 
             TextFormField(
@@ -369,37 +477,53 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
 
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<District>(
               value: _selectedDistrict,
               validator: (value) => value == null ? "Lütfen yaşadığınız ilçeyi seçin" : null,
               decoration: const InputDecoration(
-                labelText: "İlçe", 
+                labelText: "İzmir İlçe", 
                 prefixIcon: Icon(Icons.location_city_outlined)
               ),
-              items: izmirDistricts.map((district) {
-                return DropdownMenuItem(value: district, child: Text(district));
+              items: _districtsList.map((district) {
+                return DropdownMenuItem(value: district, child: Text(district.name));
               }).toList(),
-              onChanged: (val) => setState(() => _selectedDistrict = val),
+              onChanged: (val) {
+                setState(() {
+                  _selectedDistrict = val;
+                });
+                if(val != null) {
+                  _fetchNeighborhoods(val.id);
+                }
+              },
             ),
             const SizedBox(height: 20),
 
-            TextFormField(
-              controller: _addressController,
-              maxLines: 3,
-              validator: (value) => value!.length < 10 ? "Lütfen detaylı bir açık adres girin" : null,
-              decoration: const InputDecoration(
-                labelText: "Açık Adres",
-                alignLabelWithHint: true,
-                prefixIcon: Padding(padding: EdgeInsets.only(bottom: 45), child: Icon(Icons.home_outlined)),
-              ),
-            ),
+            _isLoadingNeighborhoods 
+              ? const Center(child: CircularProgressIndicator())
+              : DropdownButtonFormField<Neighborhood>(
+                  value: _selectedNeighborhood,
+                  validator: (value) => value == null ? "Lütfen mahalle seçin" : null,
+                  decoration: const InputDecoration(
+                    labelText: "Mahalle", 
+                    prefixIcon: Icon(Icons.location_on_outlined)
+                  ),
+                  items: _neighborhoodsList.map((n) {
+                    return DropdownMenuItem(value: n, child: Text(n.name, overflow: TextOverflow.ellipsis));
+                  }).toList(),
+                  onChanged: _neighborhoodsList.isEmpty ? null : (val) {
+                    setState(() {
+                      _selectedNeighborhood = val;
+                    });
+                  },
+                ),
+
             const SizedBox(height: 40),
 
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
+                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
                 const SizedBox(width: 15),
-                Expanded(flex: 2, child: ElevatedButton(onPressed: _nextStep, child: const Text("Devam Et (Sağlık)"))),
+                Expanded(flex: 2, child: ElevatedButton(style: ElevatedButton.styleFrom(minimumSize: const Size(0, 50)), onPressed: _nextStep, child: const Text("Devam Et (Sağlık)"))),
               ],
             ),
           ],
@@ -432,7 +556,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
 
-            // DÜZELTİLDİ: Cinsiyet dropdown'u (Value = E/K, Metin = Erkek/Kadın)
             DropdownButtonFormField<String>(
               value: _selectedGender,
               validator: (value) => value == null ? "Cinsiyet seçimi zorunludur" : null,
@@ -445,7 +568,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             const SizedBox(height: 20),
 
-            // YENİ: KİLO BİLGİSİ GİRİŞİ (Kan bağışı için 50kg sınırı var)
             TextFormField(
               controller: _weightController,
               keyboardType: TextInputType.number,
@@ -462,11 +584,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
             Row(
               children: [
-                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 55), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
+                Expanded(child: OutlinedButton(onPressed: _previousStep, style: OutlinedButton.styleFrom(minimumSize: const Size(0, 50), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text("Geri", style: TextStyle(color: Colors.grey)))),
                 const SizedBox(width: 15),
                 Expanded(
                   flex: 2, 
                   child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(minimumSize: const Size(0, 50)),
                     onPressed: _isLoading ? null : _submitRegistration, 
                     child: _isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text("Kayıt Ol")
                   )
