@@ -13,7 +13,7 @@ Base = declarative_base()
 
 class UserRoleEnum(str, enum.Enum):
     DONOR = "donor"
-    HEALTHCARE = "healthcare"
+    staff = "staff"
     ADMIN = "admin"
 
 class GenderEnum(str, enum.Enum):

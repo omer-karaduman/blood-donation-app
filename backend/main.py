@@ -172,23 +172,22 @@ def create_smart_blood_request(
 ):
     """
     Tez Odaklı Özgün Fonksiyon: Personel kan talebi oluşturur. Sistem arka planda 
-    hastaneye 15 km çapındaki uygun donörleri bulur, Tıbbi kısıtlamaları (3-4 ay) kontrol eder, 
+    hastaneye 10 km çapındaki uygun donörleri bulur, Tıbbi kısıtlamaları (3-4 ay) kontrol eder, 
     ML modeline sokar ve en yüksek ihtimalli ilk 30 kişiye bildirim (NotificationLog) atar.
     """
     
-# 1. Personeli ve Kurumu (Hastaneyi) Bul
+    # 1. Personeli ve Kurumu (Hastaneyi) Bul
     staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == personel_id).first()
     if not staff:
         raise HTTPException(status_code=404, detail="Personel yetkisi bulunamadı.")
 
-    # DÜZELTME 1: Institution.id yerine Institution.kurum_id yazdık
     institution = db.query(models.Institution).filter(models.Institution.kurum_id == staff.kurum_id).first()
     if not institution or not institution.konum:
         raise HTTPException(status_code=400, detail="Kurumun konum verisi eksik, akıllı eşleştirme yapılamaz.")
 
     # 2. Kan Talebini Veritabanına Kaydet
     new_request = models.BloodRequest(
-        kurum_id=institution.kurum_id, # DÜZELTME 2: institution.id yerine institution.kurum_id yazıldı
+        kurum_id=institution.kurum_id, 
         olusturan_personel_id=personel_id,
         istenen_kan_grubu=request_in.istenen_kan_grubu,
         unite_sayisi=request_in.unite_sayisi,
@@ -199,9 +198,9 @@ def create_smart_blood_request(
     db.flush() # new_request.talep_id'yi alabilmek için geçici kayıt
 
     # =========================================================================
-    # AŞAMA 1: POSTGIS İLE KONUM BAZLI FİLTRELEME (Maksimum 15 KM Çap)
+    # AŞAMA 1: POSTGIS İLE KONUM BAZLI FİLTRELEME (Maksimum 10 KM Çap)
     # =========================================================================
-    MAX_DISTANCE_METERS = 15000 
+    MAX_DISTANCE_METERS = 10000 # 15 km'den 10 km'ye düşürüldü
     
     nearby_donors = db.query(
         models.DonorProfile,
@@ -217,7 +216,7 @@ def create_smart_blood_request(
 
     if not nearby_donors:
         db.commit()
-        return {"message": "Talep oluşturuldu ancak 15 km çapında uygun donör bulunamadı.", "hedeflenen_donor_sayisi": 0}
+        return {"message": "Talep oluşturuldu ancak 10 km çapında uygun donör bulunamadı.", "hedeflenen_donor_sayisi": 0}
 
     # =========================================================================
     # AŞAMA 2: TIBBİ KISITLAMALAR VE ML İLE GELME İHTİMALİ HESAPLAMA
@@ -275,7 +274,7 @@ def create_smart_blood_request(
     # Eğer tıbbi kısıtlamalardan sonra elde hiç donör kalmadıysa
     if not valid_donors:
         db.commit()
-        return {"message": "15 km çapında donörler bulundu ancak tıbbi bekleme süreleri dolmadığı için bildirim atılamadı.", "hedeflenen_donor_sayisi": 0}
+        return {"message": "10 km çapında donörler bulundu ancak tıbbi bekleme süreleri dolmadığı için bildirim atılamadı.", "hedeflenen_donor_sayisi": 0}
 
     donor_predictions = []
     
@@ -553,7 +552,7 @@ def create_staff(staff: schemas.StaffCreate, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=400, detail="Email kullanımda.")
 
-    new_user = models.User(email=staff.email, hashed_password=staff.password, role=models.UserRoleEnum.HEALTHCARE)
+    new_user = models.User(email=staff.email, hashed_password=staff.password, role=models.UserRoleEnum.staff)
     db.add(new_user)
     db.flush()
 
@@ -647,7 +646,7 @@ def get_user_profile_data(user_id: uuid.UUID, db: Session = Depends(get_db)):
         }
     
     # Personel ise
-    elif user.role.name == "HEALTHCARE" and user.staff_profile:
+    elif user.role.name == "staff" and user.staff_profile:
         return {
             "ad_soyad": user.staff_profile.ad_soyad,
             "unvan": user.staff_profile.unvan,

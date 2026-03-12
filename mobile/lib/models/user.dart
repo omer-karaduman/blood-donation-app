@@ -38,7 +38,7 @@ class User {
     if (roleStr.contains('admin')) {
       return UserRole.admin;
     } else if (roleStr.contains('health') || roleStr.contains('staff')) {
-      // Backend'deki 'HEALTHCARE' rolünü Flutter'daki 'staff' rolüne eşler
+      // Backend'deki 'staff' rolünü Flutter'daki 'staff' rolüne eşler
       return UserRole.staff;
     } else {
       return UserRole.donor;
