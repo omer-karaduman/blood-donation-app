@@ -43,8 +43,7 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
   // --- YENİ: İLÇELERİ BACKEND'DEN ÇEK ---
   Future<void> _fetchDistricts() async {
     try {
-      // ApiConstants.baseUrl varsayımıyla (kendi proje yapılandırmana göre ayarlayabilirsin)
-      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts'));
+      final response = await http.get(Uri.parse('${ApiConstants.locationsEndpoint}/districts'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) {
@@ -66,7 +65,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
 
   Future<List<Institution>> fetchInstitutions() async {
     var queryParams = <String>[];
-    // YENİ: String isim yerine UUID gönderiyoruz
     if (selectedFilterDistrict != null) queryParams.add('district_id=${selectedFilterDistrict!.id}');
     if (selectedType != "Tümü") queryParams.add('tipi=$selectedType');
 
@@ -103,7 +101,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
     final addrCtrl = TextEditingController();
     String type = "Hastane";
     
-    // Form içi dinamik lokasyon değişkenleri
     District? formSelectedDistrict;
     Neighborhood? formSelectedNeighborhood;
     List<Neighborhood> formNeighborhoods = [];
@@ -145,7 +142,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                     ),
                     const SizedBox(height: 15),
 
-                    // YENİ: Dinamik İlçe Seçici
                     DropdownButtonFormField<District>(
                       value: formSelectedDistrict,
                       hint: const Text("İlçe Seçin"),
@@ -160,9 +156,8 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                           isLoadingNeighborhoods = true;
                         });
 
-                        // Seçilen ilçenin mahallelerini çek
                         try {
-                          final res = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts/${val.id}/neighborhoods'));
+                          final res = await http.get(Uri.parse('${ApiConstants.locationsEndpoint}/districts/${val.id}/neighborhoods'));
                           if (res.statusCode == 200) {
                             final List<dynamic> nData = json.decode(utf8.decode(res.bodyBytes));
                             setModalState(() {
@@ -178,7 +173,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                     ),
                     const SizedBox(height: 15),
 
-                    // YENİ: Dinamik Mahalle Seçici
                     isLoadingNeighborhoods 
                       ? const CircularProgressIndicator()
                       : DropdownButtonFormField<Neighborhood>(
@@ -206,14 +200,13 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                             return;
                           }
 
-                          // YENİ: Backend'e gönderilecek JSON (UUID formatında)
                           final body = {
                             "kurum_adi": nameCtrl.text.trim(),
                             "tam_adres": addrCtrl.text.trim(),
                             "tipi": type,
                             "district_id": formSelectedDistrict!.id,
                             "neighborhood_id": formSelectedNeighborhood!.id,
-                            "latitude": 38.42, // Geliştirmede İzmir merkez varsayılan
+                            "latitude": 38.42, 
                             "longitude": 27.14,
                             "parent_id": null
                           };
@@ -288,24 +281,42 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
                   return SliverFillRemaining(child: Center(child: Text("Hata: ${snapshot.error}")));
                 }
 
+                // GÜVENLİ VE TÜR DÖNÜŞÜMLÜ FİLTRELEME
                 final List<Institution> allData = snapshot.data ?? [];
                 final String nameQuery = _normalizeTr(_nameSearchController.text);
                 final String districtQuery = _normalizeTr(_districtSearchController.text);
 
-                final List<Institution> processedData = allData.where((inst) {
+                // 1. Ana veriyi filtrele (List<Institution> olarak)
+                final List<Institution> processedData = <Institution>[];
+                for (var inst in allData) {
                   final bool matchesName = _normalizeTr(inst.ad).contains(nameQuery);
-                  // YENİ: Arama çubuğunda inst.ilce yerine inst.ilceAdi kullanıyoruz
                   final bool matchesDistrict = _normalizeTr(inst.ilceAdi).contains(districtQuery);
-                  return matchesName && matchesDistrict;
-                }).toList();
+                  if (matchesName && matchesDistrict) {
+                    processedData.add(inst);
+                  }
+                }
 
-                // Hiyerarşi Mantığı
-                final List<Institution> rootInstitutions = processedData.where((inst) => inst.parentId == null).toList();
-                final List<Institution> subInstitutions = processedData.where((inst) => inst.parentId != null).toList();
+                // 2. Hiyerarşi Mantığı (List<Institution> olarak)
+                final List<Institution> rootInstitutions = <Institution>[];
+                final List<Institution> subInstitutions = <Institution>[];
                 
-                final List<Institution> orphanInstitutions = subInstitutions.where((child) => 
-                  !rootInstitutions.any((parent) => parent.id == child.parentId)
-                ).toList();
+                for (var inst in processedData) {
+                  if (inst.parentId == null) {
+                    rootInstitutions.add(inst);
+                  } else {
+                    subInstitutions.add(inst);
+                  }
+                }
+                
+                // 3. Yetim alt birimleri ana listeye ekle
+                final List<Institution> orphanInstitutions = <Institution>[];
+                for (var child in subInstitutions) {
+                  bool hasParent = rootInstitutions.any((parent) => parent.id == child.parentId);
+                  if (!hasParent) {
+                    orphanInstitutions.add(child);
+                  }
+                }
+                
                 rootInstitutions.addAll(orphanInstitutions);
 
                 if (rootInstitutions.isEmpty) {
@@ -411,7 +422,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
           ),
         ),
         title: Text(inst.ad, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.bold, fontSize: isChild ? 13 : 15)),
-        // YENİ: inst.ilceAdi kullanıldı
         subtitle: Text("${inst.ilceAdi} - ${inst.tamAdres}", maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: Colors.grey)),
         trailing: const Icon(Icons.settings_outlined, size: 20, color: Colors.grey),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => InstitutionDetailScreen(institution: inst))),
@@ -426,7 +436,6 @@ class _InstitutionManagementScreenState extends State<InstitutionManagementScree
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]),
         child: DropdownButtonHideUnderline(
-          // YENİ: String yerine District nesnesi kullanılıyor
           child: DropdownButton<District?>(
             value: selectedFilterDistrict,
             isExpanded: true,

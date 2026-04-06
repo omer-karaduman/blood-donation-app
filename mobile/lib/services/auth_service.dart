@@ -7,7 +7,8 @@ import '../constants/api_constants.dart';
 class AuthService {
   static Future<User?> login(String email, String password) async {
     final response = await http.post(
-      Uri.parse('${ApiConstants.baseUrl}/login'),
+      // URL BURADA GÜNCELLENDİ: Artık doğrudan sabitimizi çağırıyoruz
+      Uri.parse(ApiConstants.loginEndpoint),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'email': email, 'password': password}),
     );

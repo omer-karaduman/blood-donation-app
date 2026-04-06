@@ -64,7 +64,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _fetchDistricts() async {
     try {
-      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts'));
+      // URL GÜNCELLENDİ
+      final response = await http.get(Uri.parse('${ApiConstants.locationsEndpoint}/districts'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) {
@@ -87,7 +88,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      final response = await http.get(Uri.parse('${ApiConstants.baseUrl}/locations/districts/$districtId/neighborhoods'));
+      // URL GÜNCELLENDİ
+      final response = await http.get(Uri.parse('${ApiConstants.locationsEndpoint}/districts/$districtId/neighborhoods'));
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) {
@@ -232,7 +234,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       };
 
       final response = await http.post(
-        Uri.parse('${ApiConstants.baseUrl}/register/donor/'), 
+        // URL BURADA GÜNCELLENDİ: Artık doğrudan donorRegisterEndpoint kullanıyoruz
+        Uri.parse(ApiConstants.donorRegisterEndpoint), 
         headers: {"Content-Type": "application/json"},
         body: json.encode(body),
       );

@@ -309,13 +309,34 @@ def update_staff(user_id: uuid.UUID, update_data: dict, db: Session = Depends(ge
     """Personel bilgilerini günceller."""
     staff = db.query(models.StaffProfile).filter(models.StaffProfile.user_id == user_id).first()
     user = db.query(models.User).filter(models.User.user_id == user_id).first()
+    
     if not staff or not user:
         raise HTTPException(status_code=404, detail="Bulunamadı")
     
-    if "ad_soyad" in update_data: staff.ad_soyad = update_data["ad_soyad"]
-    if "email" in update_data: user.email = update_data["email"]
+    # 1. Temel Bilgiler
+    if "ad_soyad" in update_data: 
+        staff.ad_soyad = update_data["ad_soyad"]
+        
+    if "email" in update_data: 
+        user.email = update_data["email"]
+        
+    # 2. Kurum ve Ünvan Bilgileri (Eksik Olan Kısım Eklendi!)
+    if "kurum_id" in update_data and update_data["kurum_id"]: 
+        staff.kurum_id = update_data["kurum_id"]
+        
+    if "unvan" in update_data: 
+        staff.unvan = update_data["unvan"]
+        
+    # 3. Hesap Durumu (Aktif / Pasif)
+    if "is_active" in update_data:
+        user.is_active = update_data["is_active"]
+        
+    # 4. İsteğe Bağlı Şifre Güncelleme
+    if "password" in update_data and update_data["password"]:
+        user.hashed_password = update_data["password"]
+
     db.commit()
-    return {"message": "Güncellendi"}
+    return {"message": "Personel başarıyla güncellendi."}
 
 
 @router.delete("/{user_id}")

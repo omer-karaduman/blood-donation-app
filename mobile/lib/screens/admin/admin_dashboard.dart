@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../constants/api_constants.dart';
-import '../../models/admin_summary.dart'; // AdminSummary modelini import ettiğinizden emin olun
+import '../../models/admin_summary.dart'; 
 import 'institution_management.dart';
 import 'staff_management_screen.dart';
 
@@ -34,11 +34,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConstants.baseUrl}/api/admin/summary'),
+        // URL GÜNCELLENDİ: Artık doğrudan sabit olan adminSummaryEndpoint kullanılıyor!
+        Uri.parse(ApiConstants.adminSummaryEndpoint),
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
         setState(() {
           _summary = AdminSummary.fromJson(data);
           _isLoading = false;
@@ -157,7 +158,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     icon: Icons.psychology_rounded, 
                     color: Colors.purple.shade400,
                     onTap: () {
-                      // İleride detaylı ML ekranına bağlanabilir
                       debugPrint("ML Raporu tıklandı");
                     },
                   ),

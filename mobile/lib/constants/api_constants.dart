@@ -31,12 +31,14 @@ class ApiConstants {
   // '$donorsEndpoint/$userId/feed'
 
   // --- Staff (Personel ve Kan Talebi İşlemleri) ---
-  static String get staffEndpoint => '$baseUrl/staff';
-  static String get requestsEndpoint => '$baseUrl/staff/requests'; // ESKİDEN $baseUrl/requests/ idi
+  // DÜZELTME: Sonuna slash (/) eklendi! (307 Redirect hatasını çözer)
+  static String get staffEndpoint => '$baseUrl/staff/'; 
+  static String get requestsEndpoint => '$baseUrl/staff/requests';
   static String get myRequestsEndpoint => '$baseUrl/staff/my-requests';
 
   // --- Institutions (Kurum ve Hastaneler) ---
-  static String get institutionsEndpoint => '$baseUrl/institutions';
+  // DÜZELTME: Sonuna slash (/) eklendi!
+  static String get institutionsEndpoint => '$baseUrl/institutions/';
 
   // --- Locations (Konum, İlçe, Mahalle) ---
   static String get locationsEndpoint => '$baseUrl/locations';
