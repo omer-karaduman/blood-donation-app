@@ -1,18 +1,47 @@
 // mobile/lib/constants/api_constants.dart
 
-class ApiConstants {
-  /// Çalışma Ortamına Göre Base URL Seçimi:
-  /// Windows/Web/iOS Simulator için -> 'http://127.0.0.1:8000'
-  /// Android Emulator için          -> 'http://10.0.2.2:8000'
-  /// Canlı Sunucu (Production) için -> 'https://api.seninsiten.com'
-  
-  static const String baseUrl = 'http://127.0.0.1:8000';
+import 'package:flutter/foundation.dart'; // TargetPlatform ve kIsWeb için gerekli
 
-  // İleride tüm endpoint'leri (istek atılan uç noktaları) de burada toplayabiliriz:
-  static const String staffEndpoint = '$baseUrl/staff/';
-  static const String donorsEndpoint = '$baseUrl/donors/';
-  static const String institutionsEndpoint = '$baseUrl/institutions/';
-  static const String requestsEndpoint = '$baseUrl/requests/';
-  static const String myRequestsEndpoint = '$baseUrl/staff/my-requests';
-  static const String adminLogsEndpoint = '$baseUrl/admin/system-logs';
+class ApiConstants {
+  /// Çalışma Ortamına Göre Dinamik Base URL Seçimi
+  /// Web için -> localhost
+  /// Android Emulator için -> 10.0.2.2
+  /// Windows/iOS Simulator için -> 127.0.0.1
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:8000';
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      return 'http://10.0.2.2:8000';
+    } else {
+      return 'http://127.0.0.1:8000';
+    }
+  }
+
+  // ==========================================
+  // YENİ MODÜLER YAPIYA GÖRE ENDPOINT'LER
+  // ==========================================
+
+  // --- Auth (Kimlik Doğrulama) ---
+  static String get loginEndpoint => '$baseUrl/auth/login';
+
+  // --- Donors (Donör İşlemleri) ---
+  static String get donorsEndpoint => '$baseUrl/donors';
+  static String get donorRegisterEndpoint => '$baseUrl/donors/register';
+  // Not: Donör feed için URL'yi dinamik olarak şu şekilde kuracaksın:
+  // '$donorsEndpoint/$userId/feed'
+
+  // --- Staff (Personel ve Kan Talebi İşlemleri) ---
+  static String get staffEndpoint => '$baseUrl/staff';
+  static String get requestsEndpoint => '$baseUrl/staff/requests'; // ESKİDEN $baseUrl/requests/ idi
+  static String get myRequestsEndpoint => '$baseUrl/staff/my-requests';
+
+  // --- Institutions (Kurum ve Hastaneler) ---
+  static String get institutionsEndpoint => '$baseUrl/institutions';
+
+  // --- Locations (Konum, İlçe, Mahalle) ---
+  static String get locationsEndpoint => '$baseUrl/locations';
+
+  // --- Admin (Sistem Özeti ve Loglar) ---
+  static String get adminSummaryEndpoint => '$baseUrl/admin/summary';
+  static String get adminLogsEndpoint => '$baseUrl/admin/system-logs';
 }
