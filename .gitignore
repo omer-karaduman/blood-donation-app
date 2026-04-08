@@ -27,9 +27,7 @@ Thumbs.db
 
 # --- ML Data (Ömer için - Büyük verileri yüklememek için) ---
 /ml_engine/data/
-*.pkl
-*.h5
-*.pth
+
 
 serviceAccountKey.json
 .env
