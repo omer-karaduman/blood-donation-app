@@ -1,13 +1,21 @@
-# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text # Hatayı çözmek için eklendi
 import models
 from database import engine
 
 # ROUTER'LARIN İÇERİ AKTARILMASI
 from routers import admin, auth, donors, institutions, locations, staff, users
 
-# Veritabanı tablolarını otomatik oluştur
+# ======================================================================
+# --- VERİTABANI ÖN HAZIRLIK (PostGIS Entegrasyonu) ---
+# ======================================================================
+# Konum (geometry) hatasını çözmek için PostGIS eklentisini aktif ediyoruz
+with engine.connect() as conn:
+    conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis;"))
+    conn.commit()
+
+# Veritabanı tablolarını şimdi güvenle otomatik oluşturabiliriz
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
