@@ -99,8 +99,9 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
     """
     my_logs = db.query(models.NotificationLog)\
                 .options(
-                    joinedload(models.NotificationLog.request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
-                    joinedload(models.NotificationLog.request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
+                    # DÜZELTME 1: "request" yerine "blood_request" yazıldı
+                    joinedload(models.NotificationLog.blood_request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
+                    joinedload(models.NotificationLog.blood_request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
                 )\
                 .filter(
                     models.NotificationLog.user_id == user_id,
@@ -109,7 +110,8 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
     
     feed_data = []
     for log in my_logs:
-        req = log.request
+        # DÜZELTME 2: "log.request" yerine "log.blood_request" yazıldı
+        req = log.blood_request
         if req and req.durum == models.RequestStatusEnum.AKTIF:
             feed_data.append({
                 "log_id": log.log_id, 

@@ -1,23 +1,31 @@
 import firebase_admin
-from firebase_admin import credentials, messaging, db # 🚀 db modülü eklendi
+from firebase_admin import credentials, messaging, db 
 import os
 
 # Ayarları Oku
-DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL") # 🚀 RTDB URL'si için yeni env
+DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL") 
 
-# Firebase Başlatma (Hata almamak için kontrol)
+# 🚀 YENİ YOL BULUCU (Hem Senin Bilgisayarın Hem Render İçin)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIREBASE_KEY_PATH = os.path.join(BASE_DIR, "serviceAccountKey.json")
+LOCAL_KEY_PATH = os.path.join(BASE_DIR, "serviceAccountKey.json")
+RENDER_KEY_PATH = "/etc/secrets/serviceAccountKey.json" # Render dosyayı buraya saklar!
 
+# Dosya nerede? Karar ver:
+if os.path.exists(RENDER_KEY_PATH):
+    FIREBASE_KEY_PATH = RENDER_KEY_PATH
+else:
+    FIREBASE_KEY_PATH = LOCAL_KEY_PATH
+
+# Firebase Başlatma
 if not firebase_admin._apps:
     if os.path.exists(FIREBASE_KEY_PATH):
         cred = credentials.Certificate(FIREBASE_KEY_PATH)
-        # 🚀 SADECE BURASI DEĞİŞTİ: RTDB linkini de vererek başlatıyoruz
         firebase_admin.initialize_app(cred, {
             'databaseURL': DATABASE_URL
         })
         print("✅ Firebase Admin (FCM + RTDB) Hazır.")
-
+    else:
+        print("❌ HATA: serviceAccountKey.json hiçbir yerde bulunamadı!")
 # ---------------------------------------------------------
 # YARDIMCI FONKSİYONLAR
 # ---------------------------------------------------------

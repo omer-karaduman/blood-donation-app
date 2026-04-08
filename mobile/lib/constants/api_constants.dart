@@ -1,27 +1,12 @@
-// mobile/lib/constants/api_constants.dart
-
-import 'package:flutter/foundation.dart'; // TargetPlatform ve kIsWeb için gerekli
+import 'package:flutter/foundation.dart'; 
 
 class ApiConstants {
-  /// Çalışma Ortamına Göre Dinamik Base URL Seçimi
-  /// Web için -> localhost
-  /// Android Emulator için -> 10.0.2.2
-  /// Windows/iOS Simulator için -> 127.0.0.1
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://localhost:8000';
-    } else if (defaultTargetPlatform == TargetPlatform.android) {
-      // 🚀 GERÇEK TELEFON TESTİ İÇİN DEĞİŞİKLİK:
-      // Emülatör kullanırken 'http://10.0.2.2:8000' kullanıyorduk.
-      // Gerçek telefon için bilgisayarının yerel IP adresini yazıyoruz:
-      return 'http://192.168.1.10:8000'; 
-    } else {
-      return 'http://127.0.0.1:8000';
-    }
-  }
+  // 🚀 ARTIK CANLI SUNUCUDAYIZ! (RENDER)
+  // Web, Android, iOS fark etmez; hepsi bu adrese gidecek.
+  static String get baseUrl => 'https://blood-donation-app-lhrk.onrender.com';
 
   // ==========================================
-  // YENİ MODÜLER YAPIYA GÖRE ENDPOINT'LER
+  // ENDPOINT'LER (Aşağıya hiç dokunmuyoruz, hepsi aynı)
   // ==========================================
 
   // --- Auth (Kimlik Doğrulama) ---
@@ -30,17 +15,13 @@ class ApiConstants {
   // --- Donors (Donör İşlemleri) ---
   static String get donorsEndpoint => '$baseUrl/donors';
   static String get donorRegisterEndpoint => '$baseUrl/donors/register';
-  // Not: Donör feed için URL'yi dinamik olarak şu şekilde kuracaksın:
-  // '$donorsEndpoint/$userId/feed'
 
   // --- Staff (Personel ve Kan Talebi İşlemleri) ---
-  // DÜZELTME: Sonuna slash (/) eklendi! (307 Redirect hatasını çözer)
   static String get staffEndpoint => '$baseUrl/staff/'; 
   static String get requestsEndpoint => '$baseUrl/staff/requests';
   static String get myRequestsEndpoint => '$baseUrl/staff/my-requests';
 
   // --- Institutions (Kurum ve Hastaneler) ---
-  // DÜZELTME: Sonuna slash (/) eklendi!
   static String get institutionsEndpoint => '$baseUrl/institutions/';
 
   // --- Locations (Konum, İlçe, Mahalle) ---
