@@ -94,6 +94,7 @@ def create_smart_blood_request(
         istenen_kan_grubu=request_in.istenen_kan_grubu,
         unite_sayisi=request_in.unite_sayisi,
         aciliyet_durumu=request_in.aciliyet_durumu,
+        gecerlilik_suresi_saat=request_in.gecerlilik_suresi_saat,
         durum=models.RequestStatusEnum.AKTIF
     )
     db.add(new_request)

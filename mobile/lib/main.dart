@@ -16,23 +16,30 @@ import 'screens/admin/admin_dashboard.dart';
 // Staff (Personel) Ekranları
 import 'screens/staff/staff_dashboard.dart';
 
-// YENİ: Donor (Bağışçı) Ekranları
-import 'screens/donor/donor_home_screen.dart'; // DOSYA YOLU DÜZELTİLDİ
+// Donor (Bağışçı) Ekranları
+import 'screens/donor/donor_home_screen.dart'; 
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
+// 🚀 YENİ EKLENEN: Bildirim Servisi
+import 'services/notification_service.dart';
+
+// --- ANA ÇALIŞTIRICI ---
 void main() async {
   // Flutter motorunu başlatıyoruz
   WidgetsFlutterBinding.ensureInitialized();
 
-  // YENİ: Firebase'i başlatıyoruz
+  // Firebase'i başlatıyoruz
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // YENİ: Kullanıcıdan bildirim izni istiyoruz
+  // 🚀 YENİ: Uygulama açıkken (foreground) bildirim yakalayıcıyı başlatıyoruz
+  await NotificationService.initialize(); 
+
+  // Kullanıcıdan bildirim izni istiyoruz (iOS ve Android 13+)
   FirebaseMessaging messaging = FirebaseMessaging.instance;
   await messaging.requestPermission(
     alert: true,
@@ -40,9 +47,11 @@ void main() async {
     sound: true,
   );
 
-  runApp(const BloodDonationApp()); // Senin uygulamanın ana sınıfı neyse o kalsın (MyApp veya BloodDonationApp)
+  // Uygulamayı çalıştırıyoruz
+  runApp(const BloodDonationApp()); 
 }
 
+// --- UYGULAMA TEMASI VE BAŞLANGIÇ EKRANI ---
 class BloodDonationApp extends StatelessWidget {
   const BloodDonationApp({super.key});
 
@@ -182,7 +191,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       case 'donor':
       default:
         return [
-          // YENİ OLUŞTURDUĞUMUZ DONÖR ANA SAYFASI
+          // DONÖR ANA SAYFASI
           DonorHomeScreen(currentUser: widget.currentUser), 
           ProfileScreen(currentUser: widget.currentUser)
         ];

@@ -114,6 +114,7 @@ class BloodRequestCreate(BaseModel):
     istenen_kan_grubu: BloodTypeEnum
     unite_sayisi: int
     aciliyet_durumu: UrgencyEnum = UrgencyEnum.NORMAL
+    gecerlilik_suresi_saat: int = 24
 
 class DonorReactionSummary(BaseModel):
     donor_ad_soyad: str
@@ -153,4 +154,6 @@ class DonorFeedResponse(BaseModel):
     unite_sayisi: int
     aciliyet_durumu: UrgencyEnum
     olusturma_tarihi: datetime
+    # 🚀 YENİ: Donöre süreyi gönderiyoruz ki Flutter'da geri sayım sayacı yapalım
+    gecerlilik_suresi_saat: int 
     model_config = ConfigDict(from_attributes=True)

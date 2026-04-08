@@ -178,6 +178,10 @@ class BloodRequest(Base):
     istenen_kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
     unite_sayisi = Column(Integer, nullable=False)
     aciliyet_durumu = Column(SQLEnum(UrgencyEnum), default=UrgencyEnum.NORMAL)
+    
+    # 🚀 YENİ EKLENDİ: Talebin geçerlilik süresi (Saat cinsinden, varsayılan 24 saat)
+    gecerlilik_suresi_saat = Column(Integer, default=24) 
+    
     durum = Column(SQLEnum(RequestStatusEnum), default=RequestStatusEnum.AKTIF)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
 
