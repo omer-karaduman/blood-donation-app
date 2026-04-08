@@ -107,7 +107,9 @@ class StaffCreate(UserCreateBase):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+    fcm_token: Optional[str] = None
 
+    
 class BloodRequestCreate(BaseModel):
     istenen_kan_grubu: BloodTypeEnum
     unite_sayisi: int

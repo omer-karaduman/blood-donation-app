@@ -11,3 +11,5 @@ numpy
 scikit-learn
 matplotlib
 joblib
+firebase-admin==6.5.0
+requests==2.31.0

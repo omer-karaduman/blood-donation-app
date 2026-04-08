@@ -20,6 +20,8 @@ services:
 
   backend:
     build: ./backend
+    env_file:
+      - .env  # 🚀 Bu satır .env içindeki her şeyi içeri aktarır
     container_name: blood_donation_api
     volumes:
       - ./backend:/app

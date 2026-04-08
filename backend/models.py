@@ -108,7 +108,7 @@ class DonorProfile(Base):
     kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
     son_bagis_tarihi = Column(DateTime, nullable=True)
     kan_verebilir_mi = Column(Boolean, default=True)
-    
+    fcm_token = Column(String, nullable=True)
     # Lokasyon Verileri
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
     neighborhood_id = Column(UUID(as_uuid=True), ForeignKey("neighborhoods.neighborhood_id"), nullable=True)

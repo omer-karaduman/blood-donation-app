@@ -30,3 +30,6 @@ Thumbs.db
 *.pkl
 *.h5
 *.pth
+
+serviceAccountKey.json
+.env

@@ -48,7 +48,7 @@ class _DonorHomeScreenState extends State<DonorHomeScreen> {
       }
 
       // 2. ADIM: Donör akışını (talepleri) çekiyoruz
-      final feedResponse = await http.get(Uri.parse('${ApiConstants.baseUrl}/donor/$userId/feed'));
+      final feedResponse = await http.get(Uri.parse('${ApiConstants.baseUrl}/donors/$userId/feed'));
       
       if (feedResponse.statusCode == 200) {
         _feedRequests = json.decode(utf8.decode(feedResponse.bodyBytes));

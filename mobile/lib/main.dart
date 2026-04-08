@@ -19,9 +19,28 @@ import 'screens/staff/staff_dashboard.dart';
 // YENİ: Donor (Bağışçı) Ekranları
 import 'screens/donor/donor_home_screen.dart'; // DOSYA YOLU DÜZELTİLDİ
 
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'firebase_options.dart';
 
-void main() {
-  runApp(const BloodDonationApp());
+void main() async {
+  // Flutter motorunu başlatıyoruz
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // YENİ: Firebase'i başlatıyoruz
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // YENİ: Kullanıcıdan bildirim izni istiyoruz
+  FirebaseMessaging messaging = FirebaseMessaging.instance;
+  await messaging.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  runApp(const BloodDonationApp()); // Senin uygulamanın ana sınıfı neyse o kalsın (MyApp veya BloodDonationApp)
 }
 
 class BloodDonationApp extends StatelessWidget {

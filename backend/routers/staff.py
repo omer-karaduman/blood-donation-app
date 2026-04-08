@@ -12,7 +12,7 @@ from sqlalchemy import func
 import models
 import schemas
 from database import get_db
-
+from services.notification_service import notify_donor
 # Personel ve Talep endpointleri için prefix (ön ek) tanımlıyoruz
 router = APIRouter(
     prefix="/staff",
@@ -215,7 +215,11 @@ def create_smart_blood_request(
         
         if donor.ml_features:
             donor.ml_features.toplam_bildirim_sayisi += 1
-
+        kurum_adi = institution.kurum_adi if institution else "Sağlık Kurumu"
+        aciliyet = request_in.aciliyet_durumu.name if hasattr(request_in.aciliyet_durumu, 'name') else str(request_in.aciliyet_durumu)
+        
+        # Servis, FCM Token yoksa otomatik olarak SMS'e düşecek şekilde ayarlandı
+        notify_donor(donor, new_request.talep_id, kurum_adi, aciliyet)
     db.commit()
     db.refresh(new_request)
 

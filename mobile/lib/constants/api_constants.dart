@@ -11,7 +11,10 @@ class ApiConstants {
     if (kIsWeb) {
       return 'http://localhost:8000';
     } else if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:8000';
+      // 🚀 GERÇEK TELEFON TESTİ İÇİN DEĞİŞİKLİK:
+      // Emülatör kullanırken 'http://10.0.2.2:8000' kullanıyorduk.
+      // Gerçek telefon için bilgisayarının yerel IP adresini yazıyoruz:
+      return 'http://192.168.1.10:8000'; 
     } else {
       return 'http://127.0.0.1:8000';
     }
