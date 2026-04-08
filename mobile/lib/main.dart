@@ -9,49 +9,31 @@ import 'models/user.dart';
 // --- EKRAN İMPORTLARI ---
 import 'screens/login_screen.dart';
 import 'screens/profile_screen.dart';
-
-// Admin Ekranları
 import 'screens/admin/admin_dashboard.dart';
-
-// Staff (Personel) Ekranları
 import 'screens/staff/staff_dashboard.dart';
 
-// Donor (Bağışçı) Ekranları
-import 'screens/donor/donor_home_screen.dart'; 
+// --- 🚀 YENİ MODÜLER DONÖR TABLARI İMPORTLARI ---
+import 'screens/donor/tabs/donor_home_tab.dart';
+import 'screens/donor/tabs/donor_history_tab.dart';
+import 'screens/donor/tabs/donor_gamification_tab.dart';
+import 'screens/donor/tabs/donor_profile_tab.dart';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
-
-// 🚀 YENİ EKLENEN: Bildirim Servisi
 import 'services/notification_service.dart';
 
-// --- ANA ÇALIŞTIRICI ---
 void main() async {
-  // Flutter motorunu başlatıyoruz
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Firebase'i başlatıyoruz
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // 🚀 YENİ: Uygulama açıkken (foreground) bildirim yakalayıcıyı başlatıyoruz
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.initialize(); 
 
-  // Kullanıcıdan bildirim izni istiyoruz (iOS ve Android 13+)
   FirebaseMessaging messaging = FirebaseMessaging.instance;
-  await messaging.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  await messaging.requestPermission(alert: true, badge: true, sound: true);
 
-  // Uygulamayı çalıştırıyoruz
   runApp(const BloodDonationApp()); 
 }
 
-// --- UYGULAMA TEMASI VE BAŞLANGIÇ EKRANI ---
 class BloodDonationApp extends StatelessWidget {
   const BloodDonationApp({super.key});
 
@@ -60,6 +42,7 @@ class BloodDonationApp extends StatelessWidget {
     return MaterialApp(
       title: 'Kan Bağışı AI',
       debugShowCheckedModeBanner: false,
+      // 🚀 SENİN ÇOK GÜZEL DEDİĞİN TEMA AYARLARINA HİÇ DOKUNMUYORUZ
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -95,10 +78,8 @@ class BloodDonationApp extends StatelessWidget {
   }
 }
 
-// --- KALICI VE %100 DİNAMİK NAVİGASYON MERKEZİ ---
 class MainNavigationScreen extends StatefulWidget {
   final dynamic currentUser; 
-
   const MainNavigationScreen({super.key, required this.currentUser});
 
   @override
@@ -107,13 +88,10 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  
-  // Staff verileri için değişkenler
   bool _isLoadingStaffData = false;
   String _staffName = "Görevli Personel";
   String _staffInstitution = "Kayıtlı Sağlık Kurumu";
 
-  // --- KESİN ÇÖZÜM: ROLÜ GÜVENLİ OKUYAN YARDIMCI FONKSİYON ---
   String _getSafeRoleStr() {
     try {
       if (widget.currentUser == null || widget.currentUser.role == null) return 'donor';
@@ -131,55 +109,37 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  // --- ARKA PLANDA GERÇEK STAFF BİLGİLERİNİ ÇEKEN FONKSİYON ---
   Future<void> _fetchStaffData() async {
     setState(() => _isLoadingStaffData = true);
     try {
       final response = await http.get(Uri.parse(ApiConstants.staffEndpoint));
-      
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
-        
         final myProfile = data.firstWhere(
           (s) => s['user_id'] == widget.currentUser.userId, 
           orElse: () => null
         );
-
         if (myProfile != null && mounted) {
           setState(() {
             _staffName = myProfile['ad_soyad'] ?? widget.currentUser.email.split('@')[0].toUpperCase();
             _staffInstitution = myProfile['kurum_adi'] ?? "Kurum Bilgisi Yok";
             _isLoadingStaffData = false;
           });
-        } else {
-          if (mounted) setState(() => _isLoadingStaffData = false);
         }
-      } else {
-        if (mounted) setState(() => _isLoadingStaffData = false);
       }
     } catch (e) {
-      debugPrint("Staff verisi çekilirken hata: $e");
       if (mounted) setState(() => _isLoadingStaffData = false);
     }
   }
 
-  // 1. Rol bazlı DİNAMİK sayfaları tanımlıyoruz
+  // --- 🚀 YENİ 4'LÜ DONÖR SAYFA YAPISI ---
   List<Widget> _getPages() {
     String roleStr = _getSafeRoleStr(); 
 
     switch (roleStr) {
       case 'admin':
-        return [
-          const AdminDashboard(), 
-          ProfileScreen(currentUser: widget.currentUser) 
-        ];
+        return [const AdminDashboard(), ProfileScreen(currentUser: widget.currentUser)];
       case 'staff':
-        if (_isLoadingStaffData) {
-          return [
-            const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFE53935)))),
-            ProfileScreen(currentUser: widget.currentUser)
-          ];
-        }
         return [
           StaffDashboard(
             staffUserId: widget.currentUser.userId,
@@ -191,14 +151,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       case 'donor':
       default:
         return [
-          // DONÖR ANA SAYFASI
-          DonorHomeScreen(currentUser: widget.currentUser), 
-          ProfileScreen(currentUser: widget.currentUser)
+          DonorHomeTab(currentUser: widget.currentUser),
+          DonorHistoryTab(currentUser: widget.currentUser),
+          DonorGamificationTab(currentUser: widget.currentUser),
+          DonorProfileTab(currentUser: widget.currentUser),
         ];
     }
   }
 
-  // 2. Rol bazlı Navigasyon ikonlarını tanımlıyoruz
+  // --- 🚀 YENİ 4'LÜ DONÖR İKON YAPISI ---
   List<BottomNavigationBarItem> _getNavItems() {
     String roleStr = _getSafeRoleStr(); 
 
@@ -217,6 +178,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       default:
         return const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Bağışlarım'),
+          BottomNavigationBarItem(icon: Icon(Icons.emoji_events_rounded), label: 'Puanlar'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
         ];
     }
@@ -224,13 +187,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = _getPages();
-    final items = _getNavItems();
-
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: pages,
+        children: _getPages(),
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
@@ -244,7 +204,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           backgroundColor: Colors.white,
           type: BottomNavigationBarType.fixed,
           elevation: 0,
-          items: items,
+          items: _getNavItems(),
         ),
       ),
     );

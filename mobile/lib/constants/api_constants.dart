@@ -2,7 +2,8 @@ import 'package:flutter/foundation.dart';
 
 class ApiConstants {
   // 🚀 CANLI SUNUCU ADRESİ (RENDER)
-  static String get baseUrl => 'https://blood-donation-app-lhrk.onrender.com';
+  //static String get baseUrl => 'https://blood-donation-app-lhrk.onrender.com';
+  static String get baseUrl => 'http://localhost:8000';
 
   // ==========================================
   // ENDPOINT'LER
@@ -17,6 +18,7 @@ class ApiConstants {
   
   // 🚀 YENİ EKLENEN DONÖR FONKSİYONLARI:
   // Bu fonksiyonlar, içine user_id alarak dinamik URL oluşturur.
+  static String donorProfileEndpoint(String userId) => '$donorsEndpoint/$userId/profile';
   static String donorHistoryEndpoint(String userId) => '$donorsEndpoint/$userId/history';
   static String donorGamificationEndpoint(String userId) => '$donorsEndpoint/$userId/gamification';
   static String donorProfileUpdateEndpoint(String userId) => '$donorsEndpoint/$userId/update';

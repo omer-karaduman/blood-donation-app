@@ -165,3 +165,11 @@ def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = De
     
     db.commit()
     return {"status": "success"}
+
+
+@router.get("/{user_id}/profile", response_model=schemas.DonorProfileResponse)
+def get_donor_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profil bulunamadı.")
+    return profile
