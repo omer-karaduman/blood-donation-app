@@ -138,6 +138,7 @@ class Institution(Base):
     tam_adres = Column(String, nullable=False) 
 
     # İlişkiler
+    donations = relationship("DonationHistory", back_populates="institution")
     district = relationship("District", back_populates="institutions")
     neighborhood = relationship("Neighborhood", back_populates="institutions")
     sub_units = relationship(
@@ -197,7 +198,7 @@ class DonationHistory(Base):
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=True)
     bagis_tarihi = Column(DateTime, default=datetime.utcnow)
     islem_sonucu = Column(SQLEnum(DonationResultEnum), nullable=False)
-
+    institution = relationship("Institution", back_populates="donations")
     donor = relationship("DonorProfile", back_populates="donation_history")
 
 class MLFeature(Base):

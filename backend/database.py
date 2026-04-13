@@ -5,18 +5,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Docker-compose'daki ayarlara göre senin HOST (Windows) üzerinden bağlanma adresin:
-# Kullanıcı: admin, Şifre: password123, DB: blood_donation, Port: 5433 (localhost)
-DEFAULT_LOCAL_URL = "postgresql://admin:password123@127.0.0.1:5433/blood_donation"
+# 1. Docker-compose'daki ayarlara göre Windows (Host) üzerinden bağlanma adresi:
+# (PowerShell'den script çalıştırdığında burası kullanılır)
+DEFAULT_LOCAL_URL = "postgresql://admin:password123@localhost:5433/blood_donation"
 
-# Eğer Docker içindeyse ortam değişkenini (DATABASE_URL) alır, 
-# Eğer sen terminalden 'uvicorn' çalıştırırsan DEFAULT_LOCAL_URL'i (localhost) kullanır.
+# 2. ÖNEMLİ DÜZELTME: 
+# Eğer Docker içindeyse DATABASE_URL ortam değişkeni 'db:5432' olarak dolu gelir.
+# Eğer Docker dışındaysan (PowerShell), bu değişken boştur ve DEFAULT_LOCAL_URL kullanılır.
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_LOCAL_URL)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
 
 def get_db():
     db = SessionLocal()

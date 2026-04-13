@@ -17,6 +17,7 @@ import 'screens/donor/tabs/donor_home_tab.dart';
 import 'screens/donor/tabs/donor_history_tab.dart';
 import 'screens/donor/tabs/donor_gamification_tab.dart';
 import 'screens/donor/tabs/donor_profile_tab.dart';
+import 'screens/donor/tabs/donor_requests_tab.dart'; // İsim uyumuna dikkat (çoğul/tekil)
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -42,7 +43,7 @@ class BloodDonationApp extends StatelessWidget {
     return MaterialApp(
       title: 'Kan Bağışı AI',
       debugShowCheckedModeBanner: false,
-      // 🚀 SENİN ÇOK GÜZEL DEDİĞİN TEMA AYARLARINA HİÇ DOKUNMUYORUZ
+      // 🚀 SENİN ÇOK GÜZEL DEDİĞİN TEMA AYARLARI
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -132,7 +133,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  // --- 🚀 YENİ 4'LÜ DONÖR SAYFA YAPISI ---
+  // --- 🚀 GÜNCEL 5'Lİ DONÖR SAYFA LİSTESİ ---
+// --- 🚀 GÜNCEL 5'Lİ DONÖR SAYFA LİSTESİ ---
   List<Widget> _getPages() {
     String roleStr = _getSafeRoleStr(); 
 
@@ -151,7 +153,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       case 'donor':
       default:
         return [
-          DonorHomeTab(currentUser: widget.currentUser),
+          // 🚀 HATA BURADAYDI: onTabChange parametresi eklendi!
+          DonorHomeTab(
+            currentUser: widget.currentUser,
+            onTabChange: (int index) {
+              setState(() {
+                _selectedIndex = index;
+              });
+            },
+          ),
+          DonorRequestsTab(currentUser: widget.currentUser), 
           DonorHistoryTab(currentUser: widget.currentUser),
           DonorGamificationTab(currentUser: widget.currentUser),
           DonorProfileTab(currentUser: widget.currentUser),
@@ -159,7 +170,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  // --- 🚀 YENİ 4'LÜ DONÖR İKON YAPISI ---
+  // --- 🚀 GÜNCEL 5'Lİ DONÖR İKON YAPISI ---
   List<BottomNavigationBarItem> _getNavItems() {
     String roleStr = _getSafeRoleStr(); 
 
@@ -178,6 +189,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       default:
         return const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.bloodtype), label: 'Talepler'), // YENİ EKLENDİ
           BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Bağışlarım'),
           BottomNavigationBarItem(icon: Icon(Icons.emoji_events_rounded), label: 'Puanlar'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
@@ -202,7 +214,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           selectedItemColor: const Color(0xFFE53935),
           unselectedItemColor: Colors.grey,
           backgroundColor: Colors.white,
-          type: BottomNavigationBarType.fixed,
+          type: BottomNavigationBarType.fixed, // 5 öğe için bu tip zorunludur
+          selectedFontSize: 12,
+          unselectedFontSize: 11,
           elevation: 0,
           items: _getNavItems(),
         ),

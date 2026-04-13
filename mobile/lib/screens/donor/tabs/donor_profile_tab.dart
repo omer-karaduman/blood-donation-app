@@ -98,7 +98,10 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
             ),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: () => _updateProfile({key: editController.text}),
+              onPressed: () {
+                Navigator.pop(context); // Modalı kapat
+                _updateProfile({key: editController.text});
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFE53935),
                 minimumSize: const Size(double.infinity, 50),
@@ -115,8 +118,19 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
 
   // 📍 KONUM GÜNCELLEME + GEOCODING
   void _showLocationModal() {
-    String? sDId = _profileData?['neighborhood']?['district_id']?.toString();
-    String? sNId = _profileData?['neighborhood_id']?.toString();
+    String? sDId;
+    String? sNId;
+    
+    // Güvenli ID okuma
+    if (_profileData?['neighborhood'] != null && _profileData?['neighborhood'] is Map) {
+      if (_profileData!['neighborhood']['district_id'] != null) {
+        sDId = _profileData!['neighborhood']['district_id'].toString();
+      }
+      sNId = _profileData!['neighborhood_id']?.toString();
+    } else {
+      sNId = _profileData?['neighborhood_id']?.toString();
+    }
+
     List<dynamic> nList = [];
     bool isNLoading = false;
 
@@ -153,8 +167,8 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
               ElevatedButton(
                 onPressed: sNId == null ? null : () async {
                   // Seçilen mahalle ve ilçe isimlerini bulup koordinat hesapla
-                  final dName = _districts.firstWhere((d) => d['district_id'] == sDId)['name'];
-                  final nName = nList.firstWhere((n) => n['neighborhood_id'] == sNId)['name'];
+                  final dName = _districts.firstWhere((d) => d['district_id'].toString() == sDId)['name'];
+                  final nName = nList.firstWhere((n) => n['neighborhood_id'].toString() == sNId)['name'];
                   _processLocationAndSave(sNId!, dName, nName);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935), minimumSize: const Size(double.infinity, 50)),
@@ -172,7 +186,8 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     Navigator.pop(context);
     setState(() => _isLoading = true);
 
-    double? lat, lon;
+    double? lat;
+    double? lon;
     try {
       String cleanN = neighborhoodName.replaceAll(RegExp(r'\s+Mah\.?$|\s+Mahallesi$', caseSensitive: false), '').trim();
       final url = "https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent('$cleanN Mahallesi, $districtName, İzmir')}&format=json&limit=1";
@@ -181,14 +196,24 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       if (data.isNotEmpty) {
         lat = double.parse(data[0]['lat']);
         lon = double.parse(data[0]['lon']);
+      } else {
+        debugPrint("OSM Koordinat bulamadı, sadece neighborhood_id güncellenecek.");
       }
-    } catch (e) { debugPrint("❌ Geocoding hatası: $e"); }
+    } catch (e) { 
+      debugPrint("❌ Geocoding hatası: $e"); 
+    }
 
-    await _updateProfile({
+    Map<String, dynamic> updateData = {
       "neighborhood_id": neighborhoodId,
-      "latitude": lat,
-      "longitude": lon,
-    });
+    };
+    
+    // Sadece koordinat bulabildiysek gönderiyoruz, yoksa null gitmesin.
+    if (lat != null && lon != null) {
+      updateData["latitude"] = lat;
+      updateData["longitude"] = lon;
+    }
+
+    await _updateProfile(updateData);
   }
 
   // 💾 GENEL GÜNCELLEME İŞLEMİ
@@ -198,14 +223,14 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     try {
       final url = ApiConstants.donorProfileUpdateEndpoint(widget.currentUser.userId);
       
-      // Mevcut verileri koru, gelenleri üstüne yaz
+      // Mevcut verileri KESİN OLARAK koru, gelenleri üstüne yaz. Null ezmesini engelle.
       final Map<String, dynamic> payload = {
         "ad_soyad": newData['ad_soyad'] ?? _profileData?['ad_soyad'],
         "telefon": newData['telefon'] ?? _profileData?['telefon'],
         "kilo": newData.containsKey('kilo') ? double.tryParse(newData['kilo'].toString()) : _profileData?['kilo'],
         "neighborhood_id": newData['neighborhood_id'] ?? _profileData?['neighborhood_id'],
-        "latitude": newData['latitude'], 
-        "longitude": newData['longitude'],
+        "latitude": newData['latitude'] ?? _profileData?['latitude'], 
+        "longitude": newData['longitude'] ?? _profileData?['longitude'],
       };
 
       final response = await http.put(
@@ -215,7 +240,9 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       );
 
       if (response.statusCode == 200) {
-        _fetchProfileFromServer();
+        await _fetchProfileFromServer(); // Başarılıysa veriyi tekrar sunucudan çekip UI günceller
+      } else {
+        debugPrint("Hata: Backend ${response.statusCode} döndürdü.");
       }
     } catch (e) {
       debugPrint("❌ Güncelleme hatası: $e");
@@ -230,9 +257,16 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFE53935))));
     }
 
-    // Gerçek İlçe ve Mahalle İsimleri
-    String mahalle = _profileData?['neighborhood']?['name'] ?? "Bilinmiyor";
-    String ilce = _profileData?['neighborhood']?['district']?['name'] ?? "İlçe Seçilmedi";
+    // Gerçek İlçe ve Mahalle İsimleri (Güvenli Çekim)
+    String mahalle = "Bilinmiyor";
+    String ilce = "İlçe Seçilmedi";
+
+    if (_profileData?['neighborhood'] != null && _profileData?['neighborhood'] is Map) {
+      mahalle = _profileData!['neighborhood']['name'] ?? "Bilinmiyor";
+      if (_profileData!['neighborhood']['district'] != null) {
+        ilce = _profileData!['neighborhood']['district']['name'] ?? "İlçe Seçilmedi";
+      }
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),

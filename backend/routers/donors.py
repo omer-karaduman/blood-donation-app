@@ -180,12 +180,13 @@ def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = De
     return {"status": "success"}
 
 @router.get("/{user_id}/history")
-def get_donor_history(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Donörün geçmiş bağışlarını kurum bilgileriyle getirir."""
-    return db.query(models.DonationHistory)\
-             .options(joinedload(models.DonationHistory.institution))\
-             .filter(models.DonationHistory.user_id == user_id)\
-             .order_by(models.DonationHistory.bagis_tarihi.desc()).all()
+def get_donor_history(user_id: str, db: Session = Depends(get_db)):
+    # joinedload kısmını modelde tanımladığın isme göre düzelt
+    history = db.query(models.DonationHistory)\
+        .filter(models.DonationHistory.user_id == user_id)\
+        .all() # Eğer ilişki henüz kurulmadıysa .options(...) kısmını geçici olarak silebilirsin
+    return history
+
 
 @router.get("/{user_id}/gamification")
 def get_donor_gamification(user_id: uuid.UUID, db: Session = Depends(get_db)):

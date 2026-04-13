@@ -29,7 +29,7 @@ class Donor {
 
     return Donor(
       id: json['user_id']?.toString() ?? '',
-      ad_soyad: json['ad_soyad'] ?? 'İsimsiz',
+      adSoyad: json['ad_soyad'] ?? 'İsimsiz', // BURASI DÜZELTİLDİ
       telefon: json['telefon'] ?? '', // Backend'den gelen veri
       kilo: (json['kilo'] ?? 0.0).toDouble(), // Backend'den gelen veri
       email: json['user'] != null ? json['user']['email'] ?? 'Email Yok' : 'Email Yok', 

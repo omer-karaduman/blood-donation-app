@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'tabs/donor_home_tab.dart';
+import 'tabs/donor_requests_tab.dart'; // YENİ EKLENDİ
 import 'tabs/donor_history_tab.dart';
 import 'tabs/donor_gamification_tab.dart';
 import 'tabs/donor_profile_tab.dart';
@@ -17,8 +18,10 @@ class _DonorMainScreenState extends State<DonorMainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Sekmelerin (Tab'lerin) listesi sırasıyla güncellendi
     final List<Widget> tabs = [
       DonorHomeTab(currentUser: widget.currentUser),
+      DonorRequestsTab(currentUser: widget.currentUser), // YENİ EKLENDİ
       DonorHistoryTab(currentUser: widget.currentUser),
       DonorGamificationTab(currentUser: widget.currentUser),
       DonorProfileTab(currentUser: widget.currentUser),
@@ -31,9 +34,12 @@ class _DonorMainScreenState extends State<DonorMainScreen> {
         onTap: (index) => setState(() => _currentIndex = index),
         selectedItemColor: const Color(0xFFE53935), // Referans aldığın o güzel kırmızı
         unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
+        type: BottomNavigationBarType.fixed, // 4'ten fazla sekme olduğu için 'fixed' olması kritik
+        selectedFontSize: 12,
+        unselectedFontSize: 11,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: 'Ana Sayfa'),
+          BottomNavigationBarItem(icon: Icon(Icons.bloodtype), label: 'Talepler'), // YENİ EKLENDİ
           BottomNavigationBarItem(icon: Icon(Icons.history_rounded), label: 'Bağışlarım'),
           BottomNavigationBarItem(icon: Icon(Icons.emoji_events_rounded), label: 'Puanlar'),
           BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profil'),
