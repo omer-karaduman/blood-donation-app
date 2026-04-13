@@ -4,9 +4,10 @@ import 'tabs/donor_requests_tab.dart'; // YENİ EKLENDİ
 import 'tabs/donor_history_tab.dart';
 import 'tabs/donor_gamification_tab.dart';
 import 'tabs/donor_profile_tab.dart';
+import '../../models/donor.dart';
 
 class DonorMainScreen extends StatefulWidget {
-  final dynamic currentUser;
+  final Donor currentUser;
   const DonorMainScreen({super.key, required this.currentUser});
 
   @override

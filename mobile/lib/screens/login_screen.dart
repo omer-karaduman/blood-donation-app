@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../main.dart';
 import '../services/auth_service.dart';
+import '../models/user.dart'; // 🚀 KRİTİK: UserRole enum'ı için bu import şart!
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,11 +16,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false; 
-  
-  // Hangi sekmede olduğumuzu tutan değişken (0: Donör, 1: Personel/Admin)
   int _selectedRoleIndex = 0; 
 
-  // --- Hata mesajlarını göstermek için yardımcı fonksiyon ---
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -41,7 +39,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _handleLogin() async {
     setState(() => _isLoading = true);
 
-    // Backend'e giriş isteği yollanır
+    // AuthService artık Donör ise Donor nesnesi, değilse User nesnesi döndürüyor
     final user = await AuthService.login(
       _emailController.text.trim(),
       _passwordController.text.trim(),
@@ -50,22 +48,22 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) setState(() => _isLoading = false);
 
     if (user != null) {
-      // --- ROL VE SEKME DOĞRULAMASI (YENİ EKLENEN KISIM) ---
+      // --- ROL VE SEKME DOĞRULAMASI ---
       bool isDonorTab = _selectedRoleIndex == 0;
-      bool isUserDonor = user.role.name == 'donor';
+      
+      // 🚀 DÜZELTME: .name kullanmak yerine doğrudan enum karşılaştırması yapıyoruz
+      // Bu yöntem NoSuchMethodError hatasını tamamen ortadan kaldırır.
+      bool isUserDonor = user.role == UserRole.donor;
 
       if (isDonorTab && !isUserDonor) {
-        // Personel veya Admin, Donör sekmesinden girmeye çalışıyor
         _showErrorSnackBar("Yetkisiz Giriş: Kurumsal hesaplar 'Personel Girişi' sekmesini kullanmalıdır.");
-        return; // Girişi durdur
+        return;
       } 
       else if (!isDonorTab && isUserDonor) {
-        // Donör, Personel sekmesinden girmeye çalışıyor
         _showErrorSnackBar("Yetkisiz Giriş: Bireysel donör hesapları 'Donör Girişi' sekmesini kullanmalıdır.");
-        return; // Girişi durdur
+        return;
       }
 
-      // --- DOĞRULAMA BAŞARILIYSA İÇERİ AL ---
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -75,11 +73,10 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      // Bilgiler tamamen yanlışsa
       _showErrorSnackBar("Giriş başarısız! E-posta veya şifreniz hatalı.");
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(

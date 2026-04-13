@@ -81,14 +81,12 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-@router.get("/{user_id}/feed", response_model=List[schemas.DonorFeedResponse])
+@router.get("/{user_id}/feed") # response_model'i schemas.DonorFeedResponse olarak kontrol et
 def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
     """
-    Donörün bekleyen ve süresi dolmamış kan taleplerini listeler. 
-    İptal edilmiş veya süresi dolmuş talepleri otomatik olarak eler.
+    Donörün bekleyen (BEKLIYOR) ve zaten onayladığı (KABUL) aktif talepleri listeler.
     """
-    # 🚀 OPTİMİZASYON 1: Sorguyu en başta daraltıyoruz (Join ve Filter ile)
-    # Sadece AKTIF olan ve donörün henüz yanıt vermediği (BEKLIYOR) kayıtları çekiyoruz.
+    # 🚀 DÜZELTME: Sadece BEKLIYOR değil, KABUL edilenleri de kapsıyoruz.
     my_logs = db.query(models.NotificationLog)\
                 .join(models.BloodRequest)\
                 .options(
@@ -97,8 +95,12 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
                 )\
                 .filter(
                     models.NotificationLog.user_id == user_id,
-                    models.NotificationLog.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR,
-                    models.BloodRequest.durum == models.RequestStatusEnum.AKTIF # 🚀 Sadece aktifleri getir
+                    # 🚀 KRİTİK DEĞİŞİKLİK: 'in_' kullanarak iki durumu da dahil ediyoruz
+                    models.NotificationLog.kullanici_reaksiyonu.in_([
+                        models.NotificationReactionEnum.BEKLIYOR,
+                        models.NotificationReactionEnum.KABUL
+                    ]),
+                    models.BloodRequest.durum == models.RequestStatusEnum.AKTIF
                 ).all()
     
     feed_data = []
@@ -110,17 +112,16 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
         if not req:
             continue
 
-        # 🚀 OPTİMİZASYON 2: Süre Kontrolü
         bitis_zamani = req.olusturma_tarihi + timedelta(hours=req.gecerlilik_suresi_saat)
         
         if su_an < bitis_zamani:
-            # Talep hala geçerli, listeye ekle
             feed_data.append({
                 "log_id": log.log_id, 
                 "talep_id": req.talep_id,
+                # 🚀 KRİTİK EKLEME: Flutter'ın 'Kabul' olanı ayırt etmesi için bu alan şart
+                "reaksiyon": log.kullanici_reaksiyonu, 
                 "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
                 "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
-                "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
                 "istenen_kan_grubu": req.istenen_kan_grubu,
                 "unite_sayisi": req.unite_sayisi,
                 "aciliyet_durumu": req.aciliyet_durumu,
@@ -128,15 +129,13 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
                 "gecerlilik_suresi_saat": req.gecerlilik_suresi_saat 
             })
         else:
-            # 🚀 Süresi dolmuşsa durumu güncelle (Staff listesinde de otomatik düşer)
+            # Süresi dolmuşsa iptale çek
             req.durum = models.RequestStatusEnum.IPTAL
             durum_degisikligi_var_mi = True
     
-    # Döngü içinde her seferinde commit yapmak yerine, değişiklik varsa bir kere yapıyoruz.
     if durum_degisikligi_var_mi:
         db.commit()
     
-    # En yeni talepler en üstte
     feed_data.sort(key=lambda x: x["olusturma_tarihi"], reverse=True)
     return feed_data
 

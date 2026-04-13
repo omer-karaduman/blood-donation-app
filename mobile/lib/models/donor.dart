@@ -1,27 +1,29 @@
-// mobile/lib/models/donor.dart (Güncellenmiş hali)
+import 'user.dart'; // 🚀 KRİTİK: UserRole bu dosyanın içinde, bu satırı mutlaka ekle!
 
 class Donor {
-  final String id;
+  final String userId; // MainNavigationScreen ile uyum için 'id' yerine 'userId' yapıldı
   final String adSoyad;
   final String email;
   final String telefon; 
   final double kilo;     
-  final String cinsiyet; // 🚀 YENİ EKLENDİ
+  final String cinsiyet; 
   final String kanGrubu;
   final bool kanVerebilirMi;
   final String mahalleAdi; 
   final DateTime? sonBagisTarihi; 
+  final UserRole role; // Artık hata vermeyecek
 
   Donor({
-    required this.id,
+    required this.userId,
     required this.adSoyad,
     required this.email,
     required this.telefon,
     required this.kilo,
-    required this.cinsiyet, // 🚀 YENİ EKLENDİ
+    required this.cinsiyet,
     required this.kanGrubu,
     required this.kanVerebilirMi,
     required this.mahalleAdi,
+    required this.role,
     this.sonBagisTarihi,
   });
 
@@ -32,18 +34,20 @@ class Donor {
     }
 
     return Donor(
-      id: json['user_id']?.toString() ?? '',
+      // Backend'den gelen farklı id isimlendirmelerine karşı güvenli atama
+      userId: json['user_id']?.toString() ?? json['id']?.toString() ?? '',
       adSoyad: json['ad_soyad'] ?? 'İsimsiz',
       telefon: json['telefon'] ?? '', 
       kilo: (json['kilo'] ?? 0.0).toDouble(), 
-      cinsiyet: json['cinsiyet'] ?? 'E', // 🚀 JSON'dan alındı
+      cinsiyet: json['cinsiyet'] ?? 'E', 
       email: json['user'] != null ? json['user']['email'] ?? 'Email Yok' : 'Email Yok', 
       kanGrubu: json['kan_grubu'] ?? '?',
       kanVerebilirMi: json['kan_verebilir_mi'] ?? true,
       mahalleAdi: json['neighborhood'] != null 
-          ? json['neighborhood']['name'] ?? 'Mahalle Belirtilmemiş' 
-          : 'Mahalle Belirtilmemiş',
+          ? json['neighborhood']['name'] ?? 'Bilinmiyor' 
+          : 'Bilinmiyor',
       sonBagisTarihi: parsedDate,
+      role: UserRole.donor, // user.dart'tan gelen enum kullanılıyor
     );
   }
 }

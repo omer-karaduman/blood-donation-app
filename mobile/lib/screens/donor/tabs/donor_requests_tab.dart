@@ -5,40 +5,41 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async'; 
 import '../../../constants/api_constants.dart';
+import '../../../models/donor.dart';
 
 class DonorRequestsTab extends StatefulWidget {
-  final dynamic currentUser;
+  final Donor currentUser; 
+  // Ana sayfadaki aktif kabul edilmiş görevi takip etmek için (MainScreen'den beslenmeli)
+  final Map<String, dynamic>? activeAcceptedRequest;
 
-  const DonorRequestsTab({super.key, required this.currentUser});
+  const DonorRequestsTab({
+    super.key, 
+    required this.currentUser, 
+    this.activeAcceptedRequest,
+  });
 
   @override
   State<DonorRequestsTab> createState() => _DonorRequestsTabState();
 }
 
 class _DonorRequestsTabState extends State<DonorRequestsTab> {
-  // --- DURUM DEĞİŞKENLERİ ---
   bool _isLoading = true;
+  bool _isBackgroundFetching = false; 
   List<dynamic> _requests = [];
   
-  // Sayaç ve Otomatik Yenileme İçin Timer'lar
-  Timer? _cooldownTimer;      // Kan verme bekleme süresi sayacı
-  Timer? _autoRefreshTimer;   // Periyodik liste güncelleme sayacı
+  Timer? _cooldownTimer;      
+  Timer? _autoRefreshTimer;   
   Duration _timeLeft = Duration.zero;
   bool _isCooldown = false;
-
-  // --- YAŞAM DÖNGÜSÜ (LIFECYCLE) ---
 
   @override
   void initState() {
     super.initState();
-    // 1. Önce donörün kan verebilirliğini (90/120 gün) kontrol et
     _checkCooldown(); 
     
-    // 2. 🚀 SİSTEM SENKRONİZASYONU:
-    // Personel bir talebi iptal ederse veya süresi dolarsa donörün listesinden düşmesi için
-    // her 30 saniyede bir listeyi "sessizce" (loading göstermeden) arka planda yeniler.
+    // Periyodik yenileme: 30 saniyede bir verileri tazeler
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && !_isCooldown && !_isLoading) {
+      if (mounted && !_isCooldown && !_isLoading && !_isBackgroundFetching) {
         _fetchRequests(isSilent: true); 
       }
     });
@@ -46,18 +47,15 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
 
   @override
   void dispose() {
-    // Bellek sızıntısını önlemek için tüm sayaçları durdur
     _cooldownTimer?.cancel();
     _autoRefreshTimer?.cancel(); 
     super.dispose();
   }
 
-  // --- MANTIKSAL FONKSİYONLAR ---
+  // --- MANTIK ---
 
-  // Kan verme süresini kontrol eder (Son bağış tarihine göre)
   void _checkCooldown() {
     if (widget.currentUser.sonBagisTarihi != null) {
-      // Erkeklerde 90, Kadınlarda 120 gün kuralı
       int waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
       final nextDate = widget.currentUser.sonBagisTarihi!.add(Duration(days: waitDays));
       final now = DateTime.now();
@@ -74,7 +72,6 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     _fetchRequests();
   }
 
-  // Geri sayım sayacını başlatır
   void _startCooldownTimer(DateTime target) {
     _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final diff = target.difference(DateTime.now());
@@ -90,33 +87,36 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     });
   }
 
-  // Backend'den kan taleplerini (feed) çeker
   Future<void> _fetchRequests({bool isSilent = false}) async {
     if (!isSilent && mounted) setState(() => _isLoading = true);
+    else _isBackgroundFetching = true;
     
     try {
-      final url = ApiConstants.donorFeedEndpoint(widget.currentUser.id); 
+      final url = ApiConstants.donorFeedEndpoint(widget.currentUser.userId); 
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
         final data = json.decode(utf8.decode(response.bodyBytes));
         if (mounted) {
           setState(() {
-            _requests = data is List ? data : (data['items'] ?? []);
+            final List<dynamic> rawList = data is List ? data : (data['items'] ?? []);
+            // Sadece 'Bekliyor' olanlar bu listede kalsın
+            _requests = rawList.where((req) {
+               final reaksiyon = req['reaksiyon'] ?? req['kullanici_reaksiyonu'];
+               return reaksiyon == 'Bekliyor' || reaksiyon == null;
+            }).toList();
             _isLoading = false;
+            _isBackgroundFetching = false;
           });
         }
       } else {
-        debugPrint("Hata: Backend ${response.statusCode} döndürdü.");
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) setState(() { _isLoading = false; _isBackgroundFetching = false; });
       }
     } catch (e) {
-      debugPrint("❌ Talepler çekilemedi: $e");
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() { _isLoading = false; _isBackgroundFetching = false; });
     }
   }
 
-  // Talebe yanıt verir (Kabul/Red)
   Future<void> _respondToRequest(String logId, String reaction) async {
     try {
       showDialog(
@@ -125,336 +125,353 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
         builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE53935))),
       );
 
-      final url = "${ApiConstants.donorsEndpoint}/${widget.currentUser.id}/respond/$logId?reaksiyon=$reaction";
+      final url = "${ApiConstants.donorsEndpoint}/${widget.currentUser.userId}/respond/$logId?reaksiyon=$reaction";
       final response = await http.post(Uri.parse(url));
 
-      if (mounted) Navigator.pop(context); // Dialogu kapat
+      if (mounted) Navigator.pop(context); 
 
       if (response.statusCode == 200) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(reaction == 'Kabul' ? "Talep kabul edildi! Hastaneye bekleniyorsunuz." : "Talep listeden kaldırıldı."),
-              backgroundColor: reaction == 'Kabul' ? Colors.green : Colors.grey,
+              content: Text(reaction == 'Kabul' ? "Harika! Hastaneye bekleniyorsunuz." : "Talep listenizden gizlendi."),
+              behavior: SnackBarBehavior.floating,
+              backgroundColor: reaction == 'Kabul' ? Colors.green.shade600 : Colors.blueGrey.shade800,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
           );
           _fetchRequests(); 
         }
-      } else {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bir hata oluştu.")));
       }
     } catch (e) {
       if (mounted) Navigator.pop(context); 
-      debugPrint("❌ Yanıt verme hatası: $e");
     }
   }
 
-  // Kabul onay penceresi
   void _confirmAccept(String logId, String hastaneAdi) {
+    if (widget.activeAcceptedRequest != null) {
+       _showAlreadyHasRequestWarning();
+       return;
+    }
+    _showConfirmSheet(logId, hastaneAdi);
+  }
+
+  void _showAlreadyHasRequestWarning() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
-          children: [
-            Icon(Icons.volunteer_activism, color: Color(0xFFE53935)),
-            SizedBox(width: 12),
-            Text("Talebi Kabul Et", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: Text(
-          "$hastaneAdi kurumundaki kan talebini kabul etmek istediğinize emin misiniz? Kabul ettikten sonra kuruma gitmeniz hayati önem taşımaktadır.",
-          style: const TextStyle(fontSize: 14, height: 1.5),
-        ),
+        title: const Text("Aktif Göreviniz Var", style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text("Şu anda zaten kabul ettiğiniz bir kan talebi bulunuyor. Yeni bir talebi kabul etmek için önce mevcut görevinizi tamamlamalı veya ana sayfa üzerinden iptal etmelisiniz."),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Vazgeç", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE53935),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () {
-              Navigator.pop(context);
-              _respondToRequest(logId, "Kabul");
-            },
-            child: const Text("Kabul Ediyorum", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Anladım", style: TextStyle(color: Color(0xFFE53935), fontWeight: FontWeight.bold))),
         ],
       ),
     );
   }
 
-  // --- ARA YÜZ (UI) BİLEŞENLERİ ---
+  // --- UI ---
 
   @override
   Widget build(BuildContext context) {
-    if (_isCooldown) return _buildTimerUI();
+    if (_isCooldown) return _buildTimerUI(key: const ValueKey('timer_view'));
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Color(0xFFE53935)))
-                : RefreshIndicator(
-                    color: const Color(0xFFE53935),
-                    onRefresh: () => _fetchRequests(),
-                    child: _requests.isEmpty
-                        ? _buildEmptyState()
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                            itemCount: _requests.length,
-                            itemBuilder: (context, index) => _buildRequestCard(_requests[index]),
-                          ),
-                  ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Üst Başlık Paneli
-  Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, bottom: 25, left: 20, right: 20),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFFE53935), Color(0xFFB71C1C)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(32), bottomRight: Radius.circular(32)),
-      ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Aktif Kan Talepleri",
-            style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          SizedBox(height: 6),
-          Text(
-            "Size özel atanmış acil veya normal kan ihtiyaçları.",
-            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Boş Liste Durumu
-  Widget _buildEmptyState() {
-    return SingleChildScrollView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.6,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
-              child: Icon(Icons.check_circle_outline_rounded, size: 70, color: Colors.green.shade400),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              "Harika! Her şey yolunda.",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-            ),
-            const SizedBox(height: 10),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 48),
-              child: Text(
-                "Şu an bölgenizde uygun bir kan talebi bulunmuyor. Yeni bir ihtiyaç oluştuğunda size bildirim göndereceğiz.",
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.5),
+      key: const ValueKey('requests_view'),
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              child: Row(
+                children: [
+                  Container(width: 4, height: 20, decoration: BoxDecoration(color: const Color(0xFFE53935), borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(width: 12),
+                  const Text("Size Uygun Kan Talepleri", style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          _isLoading && _requests.isEmpty
+              ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFFE53935))))
+              : _requests.isEmpty
+                  ? SliverFillRemaining(child: _buildEmptyState())
+                  : SliverPadding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) => _buildRequestCard(_requests[index]),
+                          childCount: _requests.length,
+                        ),
+                      ),
+                    ),
+        ],
       ),
     );
   }
 
-  // Talep Kartı Tasarımı
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 120.0,
+      floating: false,
+      pinned: true,
+      backgroundColor: Colors.white,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        centerTitle: false,
+        title: Text("Kan Talepleri", style: TextStyle(color: Colors.blueGrey.shade900, fontWeight: FontWeight.w800, fontSize: 22)),
+        background: Container(color: Colors.white),
+      ),
+    );
+  }
+
   Widget _buildRequestCard(Map<String, dynamic> item) {
     final String logId = item['log_id']?.toString() ?? "";
-    final String kurumAdi = item['kurum_adi'] ?? "Bilinmeyen Kurum";
-    final String kanGrubu = item['istenen_kan_grubu'] ?? "?";
-    final String aciliyet = item['aciliyet_durumu'] ?? "NORMAL";
+    final String kurumAdi = item['kurum_adi']?.toString() ?? "Bilinmeyen Hastane";
+    final String aciliyet = item['aciliyet_durumu']?.toString() ?? "NORMAL";
+    final bool isUrgent = aciliyet.toUpperCase() == "ACIL" || aciliyet.toUpperCase() == "AFET";
     
-    bool isUrgent = aciliyet.toUpperCase() == "ACIL" || aciliyet.toUpperCase() == "AFET";
-    Color themeColor = isUrgent ? const Color(0xFFE53935) : Colors.orange.shade800;
+    String remainingText = "Hesaplanıyor...";
+    try {
+      if (item['olusturma_tarihi'] != null) {
+        DateTime createdAt = DateTime.parse("${item['olusturma_tarihi']}Z").toLocal();
+        int durationHours = item['gecerlilik_suresi_saat'] ?? 24; 
+        DateTime expiresAt = createdAt.add(Duration(hours: durationHours));
+        Duration remaining = expiresAt.difference(DateTime.now());
+        if (!remaining.isNegative) {
+          remainingText = "${remaining.inHours}s ${remaining.inMinutes.remainder(60)}dk kaldı";
+        } else {
+          remainingText = "Süresi Doldu";
+        }
+      }
+    } catch (e) { remainingText = "Süre Bilgisi Yok"; }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 5))],
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: themeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
-                  child: Icon(Icons.local_hospital_rounded, color: themeColor, size: 28),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 20, offset: const Offset(0, 8))]),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Container(width: 5, color: isUrgent ? const Color(0xFFE53935) : Colors.orange.shade300),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: Text(kurumAdi, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
+                          _buildBadge(aciliyet.toUpperCase(), isUrgent),
+                          Row(
+                            children: [
+                              Icon(Icons.access_time_filled_rounded, size: 14, color: Colors.blueGrey.shade300),
+                              const SizedBox(width: 4),
+                              Text(remainingText, style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade400, fontWeight: FontWeight.bold)),
+                            ],
                           ),
-                          _buildUrgencyBadge(aciliyet, themeColor),
                         ],
                       ),
+                      const SizedBox(height: 16),
+                      Text(kurumAdi, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF263238))),
                       const SizedBox(height: 6),
-                      Text("${item['ilce']}, ${item['mahalle']}", style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      const SizedBox(height: 14),
                       Row(
                         children: [
-                          _buildInfoTag(kanGrubu, const Color(0xFFE53935)),
-                          const SizedBox(width: 10),
-                          _buildInfoTag("${item['unite_sayisi']} Ünite", Colors.blueGrey),
+                          Icon(Icons.location_on_rounded, size: 14, color: Colors.grey.shade400),
+                          const SizedBox(width: 4),
+                          Text(item['ilce'] ?? "Bölge Bilinmiyor", style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      // 🚀 BUTONLAR: Expanded ile sarmalanarak layout hatası giderildi
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () => _showIgnoreSheet(logId), 
+                              style: TextButton.styleFrom(
+                                backgroundColor: const Color(0xFFF5F5F5), 
+                                foregroundColor: Colors.grey.shade600, 
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
+                                padding: const EdgeInsets.symmetric(vertical: 12)
+                              ),
+                              child: const Text("İlgilenmiyorum", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () => _confirmAccept(logId, kurumAdi),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE53935), 
+                                foregroundColor: Colors.white, 
+                                elevation: 0, 
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
+                                padding: const EdgeInsets.symmetric(vertical: 12)
+                              ),
+                              child: const Text("Kabul Et", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            ),
+                          ),
                         ],
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const Divider(height: 1),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _respondToRequest(logId, "Red"),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      side: BorderSide(color: Colors.grey.shade200),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Text("Gizle", style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () => _confirmAccept(logId, kurumAdi),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE53935),
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text("Kabul Et", style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  // Yardımcı Küçük Tasarım Parçaları
-  Widget _buildUrgencyBadge(String label, Color color) {
+  Widget _buildBadge(String text, bool isUrgent) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-      child: Text(label.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900)),
+      decoration: BoxDecoration(color: isUrgent ? const Color(0xFFFFEBEE) : const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(6)),
+      child: Text(text, style: TextStyle(color: isUrgent ? const Color(0xFFC62828) : Colors.orange.shade900, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
     );
   }
 
-  Widget _buildInfoTag(String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(8)),
-      child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
-    );
-  }
+  // --- MODAL PANELLER ---
 
-  // --- SAYAÇ EKRANI (COOLDOWN UI) ---
-
-  Widget _buildTimerUI() {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Color(0xFF1A237E), Color(0xFF0277BD)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
+  void _showIgnoreSheet(String logId) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(30),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.favorite_rounded, size: 80, color: Colors.white70),
-            const SizedBox(height: 24),
-            const Text("Harika Bir İş Çıkardın!", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                "Vücudunun yeni kan üretmesi için zamana ihtiyacı var. Kendi sağlığın için beklemen gerekiyor.",
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white60, fontSize: 14, height: 1.5),
-              ),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 25),
+            Icon(Icons.visibility_off_rounded, color: Colors.blueGrey.shade300, size: 50),
+            const SizedBox(height: 20),
+            const Text("Talebi Gizle", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(
+              "Bu talebi listenizden kaldırmak istediğinize emin misiniz? Gizlenen talepler tekrar gösterilmez.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 15, height: 1.5),
             ),
-            const SizedBox(height: 48),
-            _timerDisplay(),
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    child: const Text("Vazgeç", style: TextStyle(color: Colors.black87)),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () { Navigator.pop(context); _respondToRequest(logId, "Red"); },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    child: const Text("Gizle", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _timerDisplay() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _timeBox("${_timeLeft.inDays}", "GÜN"),
-        _timeBox("${_timeLeft.inHours.remainder(24)}".padLeft(2, '0'), "SAAT"),
-        _timeBox("${_timeLeft.inMinutes.remainder(60)}".padLeft(2, '0'), "DAKİKA"),
-        _timeBox("${_timeLeft.inSeconds.remainder(60)}".padLeft(2, '0'), "SANİYE"),
-      ],
+  void _showConfirmSheet(String logId, String hastane) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.all(30),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 25),
+            const Icon(Icons.favorite_rounded, color: Color(0xFFE53935), size: 50),
+            const SizedBox(height: 20),
+            const Text("Harika Bir Adım!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(
+              "$hastane kurumuna bağış yapmayı kabul ederek bir can kurtaracaksınız. Onaylıyor musunuz?", 
+              textAlign: TextAlign.center, 
+              style: TextStyle(color: Colors.blueGrey.shade600, fontSize: 15, height: 1.5)
+            ),
+            const SizedBox(height: 30),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    child: const Text("Vazgeç", style: TextStyle(color: Colors.black87)),
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () { Navigator.pop(context); _respondToRequest(logId, "Kabul"); },
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    child: const Text("Onaylıyorum", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(padding: const EdgeInsets.all(30), decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle), child: Icon(Icons.verified_user_rounded, size: 60, color: Colors.green.shade400)),
+          const SizedBox(height: 24),
+          const Text("Şu An Her Şey Yolunda", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text("Size uygun aktif bir kan talebi bulunmuyor.", style: TextStyle(color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimerUI({Key? key}) {
+    return Scaffold(
+      key: key,
+      backgroundColor: const Color(0xFF1A237E),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.hourglass_empty_rounded, size: 80, color: Colors.white54),
+            const SizedBox(height: 30),
+            const Text("İyileşme Sürecindesiniz", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 50),
+            Row(mainAxisAlignment: MainAxisAlignment.center, children: [_timeBox("${_timeLeft.inDays}", "GÜN"), _timeBox("${_timeLeft.inHours.remainder(24)}", "SAAT"), _timeBox("${_timeLeft.inMinutes.remainder(60)}", "DAK")]),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _timeBox(String value, String label) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 6),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: [
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 4),
-          Text(label, style: const TextStyle(color: Colors.white54, fontSize: 9, fontWeight: FontWeight.bold)),
-        ],
-      ),
+      margin: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+      child: Column(children: [Text(value, style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))]),
     );
   }
 }
