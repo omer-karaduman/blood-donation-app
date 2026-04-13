@@ -1,4 +1,6 @@
+// mobile/lib/screens/donor/tabs/donor_profile_tab.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../constants/api_constants.dart';
@@ -13,35 +15,37 @@ class DonorProfileTab extends StatefulWidget {
 
 class _DonorProfileTabState extends State<DonorProfileTab> {
   bool _isLoading = true;
-  bool _isSaving = false;
   Map<String, dynamic>? _profileData;
-  
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
+  List<dynamic> _districts = [];
 
   @override
   void initState() {
     super.initState();
     _fetchProfileFromServer();
+    _fetchDistricts();
   }
 
-  // 📡 VERİYİ ÇEK: Boş gelirse email'i yedek olarak kullanır
+  // 📡 İLÇELERİ ÇEK
+  Future<void> _fetchDistricts() async {
+    try {
+      final res = await http.get(Uri.parse(ApiConstants.districtsEndpoint));
+      if (res.statusCode == 200) {
+        setState(() => _districts = json.decode(utf8.decode(res.bodyBytes)));
+      }
+    } catch (e) {
+      debugPrint("❌ İlçeler çekilemedi: $e");
+    }
+  }
+
+  // 📡 PROFİL VERİSİNİ ÇEK
   Future<void> _fetchProfileFromServer() async {
     try {
       final url = ApiConstants.donorProfileEndpoint(widget.currentUser.userId);
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
         setState(() {
-          _profileData = data;
-          // 💡 AKILLI DOLDURMA: Eğer DB boşsa email'in başını yazar
-          _nameController.text = (data['ad_soyad'] != null && data['ad_soyad'] != "") 
-              ? data['ad_soyad'] 
-              : widget.currentUser.email.split('@')[0].toUpperCase();
-          _phoneController.text = data['telefon'] ?? "";
-          _weightController.text = (data['kilo'] ?? 0).toString();
+          _profileData = json.decode(utf8.decode(response.bodyBytes));
           _isLoading = false;
         });
       }
@@ -51,33 +55,172 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     }
   }
 
-  // 💾 VERİYİ KAYDET: Artık veriler hardcoded kalmayacak!
-  Future<void> _updateProfile() async {
-    setState(() => _isSaving = true);
+  // 📝 AD, TELEFON, KİLO DÜZENLEME MODALI
+  void _showEditModal(String label, String key, String initialValue) {
+    final TextEditingController editController = TextEditingController(text: initialValue);
+    List<TextInputFormatter> formatters = [];
+    TextInputType keyboardType = TextInputType.text;
+
+    // Kısıtlamalar
+    if (key == 'ad_soyad') {
+      formatters = [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))];
+    } else if (key == 'kilo') {
+      formatters = [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(3)];
+      keyboardType = TextInputType.number;
+    } else if (key == 'telefon') {
+      formatters = [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)];
+      keyboardType = TextInputType.phone;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 24, right: 24, top: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("$label Düzenle", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: editController,
+              keyboardType: keyboardType,
+              inputFormatters: formatters,
+              autofocus: true,
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+                prefixIcon: const Icon(Icons.edit, color: Color(0xFFE53935)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _updateProfile({key: editController.text}),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFE53935),
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              ),
+              child: const Text("GÜNCELLE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+            const SizedBox(height: 30),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 📍 KONUM GÜNCELLEME + GEOCODING
+  void _showLocationModal() {
+    String? sDId = _profileData?['neighborhood']?['district_id']?.toString();
+    String? sNId = _profileData?['neighborhood_id']?.toString();
+    List<dynamic> nList = [];
+    bool isNLoading = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(25))),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Bölge Güncelle", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              DropdownButtonFormField<String>(
+                value: sDId,
+                decoration: const InputDecoration(labelText: "İlçe"),
+                items: _districts.map((d) => DropdownMenuItem(value: d['district_id'].toString(), child: Text(d['name']))).toList(),
+                onChanged: (val) async {
+                  setModalState(() { sDId = val; sNId = null; isNLoading = true; });
+                  final res = await http.get(Uri.parse(ApiConstants.neighborhoodsEndpoint(val!)));
+                  setModalState(() { nList = json.decode(utf8.decode(res.bodyBytes)); isNLoading = false; });
+                },
+              ),
+              const SizedBox(height: 15),
+              DropdownButtonFormField<String>(
+                value: sNId,
+                decoration: const InputDecoration(labelText: "Mahalle"),
+                items: nList.map((n) => DropdownMenuItem(value: n['neighborhood_id'].toString(), child: Text(n['name']))).toList(),
+                onChanged: isNLoading ? null : (val) => setModalState(() => sNId = val),
+              ),
+              const SizedBox(height: 25),
+              ElevatedButton(
+                onPressed: sNId == null ? null : () async {
+                  // Seçilen mahalle ve ilçe isimlerini bulup koordinat hesapla
+                  final dName = _districts.firstWhere((d) => d['district_id'] == sDId)['name'];
+                  final nName = nList.firstWhere((n) => n['neighborhood_id'] == sNId)['name'];
+                  _processLocationAndSave(sNId!, dName, nName);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935), minimumSize: const Size(double.infinity, 50)),
+                child: const Text("KONUMU KAYDET", style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 🌍 OSM ÜZERİNDEN KOORDİNAT BULMA
+  Future<void> _processLocationAndSave(String neighborhoodId, String districtName, String neighborhoodName) async {
+    Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    double? lat, lon;
+    try {
+      String cleanN = neighborhoodName.replaceAll(RegExp(r'\s+Mah\.?$|\s+Mahallesi$', caseSensitive: false), '').trim();
+      final url = "https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent('$cleanN Mahallesi, $districtName, İzmir')}&format=json&limit=1";
+      final res = await http.get(Uri.parse(url), headers: {'User-Agent': 'BloodApp/1.0'});
+      final data = json.decode(res.body);
+      if (data.isNotEmpty) {
+        lat = double.parse(data[0]['lat']);
+        lon = double.parse(data[0]['lon']);
+      }
+    } catch (e) { debugPrint("❌ Geocoding hatası: $e"); }
+
+    await _updateProfile({
+      "neighborhood_id": neighborhoodId,
+      "latitude": lat,
+      "longitude": lon,
+    });
+  }
+
+  // 💾 GENEL GÜNCELLEME İŞLEMİ
+  Future<void> _updateProfile(Map<String, dynamic> newData) async {
+    if (!_isLoading) setState(() => _isLoading = true);
+
     try {
       final url = ApiConstants.donorProfileUpdateEndpoint(widget.currentUser.userId);
+      
+      // Mevcut verileri koru, gelenleri üstüne yaz
+      final Map<String, dynamic> payload = {
+        "ad_soyad": newData['ad_soyad'] ?? _profileData?['ad_soyad'],
+        "telefon": newData['telefon'] ?? _profileData?['telefon'],
+        "kilo": newData.containsKey('kilo') ? double.tryParse(newData['kilo'].toString()) : _profileData?['kilo'],
+        "neighborhood_id": newData['neighborhood_id'] ?? _profileData?['neighborhood_id'],
+        "latitude": newData['latitude'], 
+        "longitude": newData['longitude'],
+      };
+
       final response = await http.put(
         Uri.parse(url),
         headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "ad_soyad": _nameController.text,
-          "telefon": _phoneController.text,
-          "kilo": int.tryParse(_weightController.text) ?? 0,
-        }),
+        body: json.encode(payload),
       );
 
       if (response.statusCode == 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Profil başarıyla veritabanına kaydedildi!"), backgroundColor: Colors.green),
-        );
-        _fetchProfileFromServer(); // Ekranı tazele
+        _fetchProfileFromServer();
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Kayıt sırasında hata oluştu."), backgroundColor: Colors.red),
-      );
+      debugPrint("❌ Güncelleme hatası: $e");
     } finally {
-      setState(() => _isSaving = false);
+      setState(() => _isLoading = false);
     }
   }
 
@@ -87,120 +230,92 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFE53935))));
     }
 
+    // Gerçek İlçe ve Mahalle İsimleri
+    String mahalle = _profileData?['neighborhood']?['name'] ?? "Bilinmiyor";
+    String ilce = _profileData?['neighborhood']?['district']?['name'] ?? "İlçe Seçilmedi";
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F7F9),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // --- 🚀 KIRMIZI GRADYAN HEADER (image_e94509.png'deki gibi) ---
-            Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.center,
+      backgroundColor: const Color(0xFFF8F9FA),
+      body: Column(
+        children: [
+          _buildHeader(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               children: [
+                _buildInfoTile("Ad Soyad", _profileData?['ad_soyad'] ?? "İsimsiz", Icons.person_outline, "ad_soyad"),
+                _buildInfoTile("Telefon (11 Hane)", _profileData?['telefon'] ?? "Eklenmemiş", Icons.phone_android, "telefon"),
+                _buildInfoTile("Kilo (kg)", "${_profileData?['kilo'] ?? 0}", Icons.monitor_weight_outlined, "kilo"),
+                
+                // 📍 KONUM KARTI
                 Container(
-                  height: 220,
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFE53935), Color(0xFFB71C1C)], 
-                    ),
-                    borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+                  child: ListTile(
+                    leading: const Icon(Icons.location_on_outlined, color: Color(0xFFE53935)),
+                    title: const Text("Bölge (İlçe / Mahalle)", style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    subtitle: Text("$ilce / $mahalle", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    trailing: const Icon(Icons.edit, color: Colors.grey, size: 18),
+                    onTap: _showLocationModal,
                   ),
                 ),
-                Positioned(
-                  top: 50,
-                  child: Column(
-                    children: [
-                      const CircleAvatar(
-                        radius: 50,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.person, size: 60, color: Color(0xFFE53935)),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _nameController.text,
-                        style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                      ),
-                      Text(widget.currentUser.email, style: const TextStyle(color: Colors.white70)),
-                    ],
-                  ),
+
+                const SizedBox(height: 10),
+                const Padding(
+                  padding: EdgeInsets.only(left: 8.0, bottom: 8.0),
+                  child: Text("Sistem Bilgileri", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
+                _buildStaticTile("Kan Grubu", _profileData?['kan_grubu'] ?? "?", Icons.bloodtype, const Color(0xFFE53935)),
+                _buildStaticTile("E-posta", widget.currentUser.email, Icons.email_outlined, Colors.blueGrey),
               ],
             ),
-
-            const SizedBox(height: 20),
-
-            // --- FORM KARTLARI ---
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(25),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 15)],
-                ),
-                child: Column(
-                  children: [
-                    _buildModernField(_nameController, "Ad Soyad", Icons.badge_outlined),
-                    const Divider(height: 30),
-                    _buildModernField(_phoneController, "Telefon", Icons.phone_android),
-                    const Divider(height: 30),
-                    _buildModernField(_weightController, "Kilo (kg)", Icons.monitor_weight_outlined, isNumeric: true),
-                  ],
-                ),
-              ),
-            ),
-
-            // --- KAN GRUBU BİLGİSİ ---
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(color: const Color(0xFFFDECEA), borderRadius: BorderRadius.circular(15)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Kan Grubu", style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFB71C1C))),
-                    Text(_profileData?['kan_grubu'] ?? "Seçilmedi", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFFE53935))),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
-
-            // --- KAYDET BUTONU ---
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _updateProfile,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE53935),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  minimumSize: const Size(double.infinity, 55),
-                ),
-                child: _isSaving 
-                  ? const CircularProgressIndicator(color: Colors.white) 
-                  : const Text("BİLGİLERİ VERİTABANINA KAYDET", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildModernField(TextEditingController controller, String label, IconData icon, {bool isNumeric = false}) {
-    return TextField(
-      controller: controller,
-      keyboardType: isNumeric ? TextInputType.number : TextInputType.text,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFFE53935)),
-        border: InputBorder.none,
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 60, bottom: 30),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
+        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+      ),
+      child: Column(
+        children: [
+          const CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.person, size: 45, color: Color(0xFFE53935))),
+          const SizedBox(height: 12),
+          Text(_profileData?['ad_soyad'] ?? "Donör", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+          const Text("Gönüllü Bağışçı", style: TextStyle(color: Colors.white70, fontSize: 13)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(String label, String value, IconData icon, String key) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
+      child: ListTile(
+        leading: Icon(icon, color: const Color(0xFFE53935)),
+        title: Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        subtitle: Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+        trailing: const Icon(Icons.edit, color: Colors.grey, size: 18),
+        onTap: () => _showEditModal(label, key, value),
+      ),
+    );
+  }
+
+  Widget _buildStaticTile(String label, String value, IconData icon, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.grey[100]!)),
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        subtitle: Text(value, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color)),
       ),
     );
   }

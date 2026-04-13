@@ -24,6 +24,7 @@ class NeighborhoodResponse(BaseModel):
     neighborhood_id: UUID
     district_id: UUID
     name: str
+    district: Optional[DistrictResponse] = None
     model_config = ConfigDict(from_attributes=True)
 
 # --- 2. TEMEL AUTH ŞEMALARI ---
@@ -59,10 +60,11 @@ class DonorCreate(UserCreateBase):
 class DonorProfileResponse(BaseModel):
     user_id: UUID
     ad_soyad: str
+    telefon: str  # YENİ EKLENDİ
+    kilo: float   # YENİ EKLENDİ
     kan_grubu: BloodTypeEnum
     kan_verebilir_mi: bool
     son_bagis_tarihi: Optional[datetime] = None
-    # Donörün hangi mahallede olduğu bilgisini de dönüyoruz
     neighborhood: Optional[NeighborhoodResponse] = None
     user: UserResponse 
     model_config = ConfigDict(from_attributes=True)

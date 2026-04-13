@@ -1,3 +1,4 @@
+# backend/routers/donors.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from geoalchemy2.elements import WKTElement
@@ -9,7 +10,6 @@ import models
 import schemas
 from database import get_db
 
-# Donör endpointleri için prefix (ön ek) tanımlıyoruz
 router = APIRouter(
     prefix="/donors",
     tags=["Donör İşlemleri"]
@@ -53,12 +53,12 @@ def update_donor_sensitivity(db: Session, user_id: uuid.UUID):
     db.commit()
 
 # ---------------------------------------------------------
-# KAYIT VE ANA FEED (BİLDİRİMLER)
+# KAYIT VE ANA FEED
 # ---------------------------------------------------------
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
-    """Yeni donör kaydı (PostGIS Destekli)."""
+    """Yeni donör kaydı yapar ve PostGIS konum verisini işler."""
     db_user = db.query(models.User).filter(models.User.email == user_in.email).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Email kullanımda.")
@@ -118,7 +118,7 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post("/{user_id}/respond/{log_id}")
 def respond_to_notification(user_id: uuid.UUID, log_id: uuid.UUID, reaksiyon: models.NotificationReactionEnum = Query(...), db: Session = Depends(get_db)):
-    """Bildirime yanıt verir ve duyarlılık motorunu tetikler."""
+    """Bildirime yanıt verir ve duyarlılık motorunu günceller."""
     log = db.query(models.NotificationLog).filter(models.NotificationLog.log_id == log_id, models.NotificationLog.user_id == user_id).first()
     if not log or log.kullanici_reaksiyonu != models.NotificationReactionEnum.BEKLIYOR:
         raise HTTPException(status_code=400, detail="Geçersiz bildirim veya zaten yanıtlanmış.")
@@ -135,12 +135,53 @@ def respond_to_notification(user_id: uuid.UUID, log_id: uuid.UUID, reaksiyon: mo
     return {"message": "Yanıt kaydedildi."}
 
 # ---------------------------------------------------------
-# 🚀 YENİ EKLENEN ENDPOINTLER (MODÜLER TABLAR İÇİN)
+# PROFİL, GEÇMİŞ VE OYUNLAŞTIRMA
 # ---------------------------------------------------------
+
+@router.get("/{user_id}/profile", response_model=schemas.DonorProfileResponse)
+def get_donor_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Donörün profil detaylarını ilişkili konum verileriyle birlikte getirir."""
+    profile = db.query(models.DonorProfile)\
+                .options(
+                    joinedload(models.DonorProfile.neighborhood).joinedload(models.Neighborhood.district),
+                    joinedload(models.DonorProfile.user)
+                )\
+                .filter(models.DonorProfile.user_id == user_id).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profil bulunamadı.")
+    return profile
+
+# backend/routers/donors.py
+
+@router.put("/{user_id}/update")
+def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
+    """Profil bilgilerini ve mahalle seçimini günceller."""
+    profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
+    if not profile: raise HTTPException(status_code=404, detail="Profil bulunamadı.")
+    
+    if "ad_soyad" in update_data: profile.ad_soyad = update_data["ad_soyad"]
+    if "telefon" in update_data: profile.telefon = update_data["telefon"]
+    if "kilo" in update_data: profile.kilo = update_data["kilo"]
+    
+    # 📍 Mahalle Güncelleme
+    if "neighborhood_id" in update_data:
+        n_id = update_data["neighborhood_id"]
+        profile.neighborhood_id = uuid.UUID(n_id) if n_id else None
+        
+    # 🌍 Coğrafi Konum (Latitude/Longitude) Güncelleme
+    # Mobil taraftan hesaplanıp gönderilen koordinatları PostGIS formatına çeviriyoruz
+    if "latitude" in update_data and "longitude" in update_data:
+        lat = update_data["latitude"]
+        lon = update_data["longitude"]
+        if lat is not None and lon is not None:
+            profile.konum = WKTElement(f"POINT({lon} {lat})", srid=4326)
+    
+    db.commit()
+    return {"status": "success"}
 
 @router.get("/{user_id}/history")
 def get_donor_history(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Donörün geçmiş bağışlarını getirir."""
+    """Donörün geçmiş bağışlarını kurum bilgileriyle getirir."""
     return db.query(models.DonationHistory)\
              .options(joinedload(models.DonationHistory.institution))\
              .filter(models.DonationHistory.user_id == user_id)\
@@ -152,24 +193,3 @@ def get_donor_gamification(user_id: uuid.UUID, db: Session = Depends(get_db)):
     data = db.query(models.GamificationData).filter(models.GamificationData.user_id == user_id).first()
     if not data: raise HTTPException(status_code=404, detail="Veri yok.")
     return data
-
-@router.put("/{user_id}/update")
-def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
-    """Profil bilgilerini günceller (Ad, Telefon, Kilo)."""
-    profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
-    if not profile: raise HTTPException(status_code=404, detail="Profil bulunamadı.")
-    
-    if "ad_soyad" in update_data: profile.ad_soyad = update_data["ad_soyad"]
-    if "telefon" in update_data: profile.telefon = update_data["telefon"]
-    if "kilo" in update_data: profile.kilo = update_data["kilo"]
-    
-    db.commit()
-    return {"status": "success"}
-
-
-@router.get("/{user_id}/profile", response_model=schemas.DonorProfileResponse)
-def get_donor_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
-    if not profile:
-        raise HTTPException(status_code=404, detail="Profil bulunamadı.")
-    return profile
