@@ -236,7 +236,7 @@ def create_smart_blood_request(
 
 @router.get("/my-requests", response_model=List[schemas.BloodRequestDetailResponse])
 def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Personelin kendi taleplerini ve ML önerilerinin sonuçlarını izlemesini sağlar. (Süresi dolanları otomatik iptal eder)"""
+    """Personelin kendi taleplerini ve ML önerilerinin sonuçlarını izlemesini sağlar."""
     requests = db.query(models.BloodRequest)\
                  .options(joinedload(models.BloodRequest.bildirimler).joinedload(models.NotificationLog.user))\
                  .filter(models.BloodRequest.olusturan_personel_id == personel_id)\
@@ -248,33 +248,33 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
     durum_degisikligi_var_mi = False
 
     for r in requests:
-        # 🚀 AŞAMA 1: SÜRE KONTROLÜ VE OTOMATİK İPTAL
         if r.durum == models.RequestStatusEnum.AKTIF:
             bitis_zamani = r.olusturma_tarihi + timedelta(hours=r.gecerlilik_suresi_saat)
             if su_an >= bitis_zamani:
                 r.durum = models.RequestStatusEnum.IPTAL
                 durum_degisikligi_var_mi = True
 
-        # AŞAMA 2: DONÖR YANITLARINI TOPLA
         donor_yanitlari = []
         for b in r.bildirimler:
+            # 🚀 DÜZELTME: log_id ve ml_score BURAYA EKLENDİ
             donor_yanitlari.append({
+                "log_id": b.log_id, # Flutter artık null almayacak
                 "donor_ad_soyad": b.user.donor_profile.ad_soyad if b.user and b.user.donor_profile else "Bilinmeyen Donör",
                 "reaksiyon": b.kullanici_reaksiyonu,
-                "reaksiyon_zamani": b.reaksiyon_zamani
+                "reaksiyon_zamani": b.reaksiyon_zamani,
+                "ml_score": b.ml_skoru_o_an or 0.0 # Skor bilgisi eklendi
             })
         
         output.append({
             "talep_id": r.talep_id,
             "istenen_kan_grubu": r.istenen_kan_grubu,
             "unite_sayisi": r.unite_sayisi,
-            "durum": r.durum, # Eğer az önce IPTAL olduysa, UI'a güncel halini gönderir
+            "durum": r.durum,
             "olusturma_tarihi": r.olusturma_tarihi,
             "donor_yanitlari": donor_yanitlari,
             "gecerlilik_suresi_saat": r.gecerlilik_suresi_saat
         })
         
-    # Eğer listedeki en az 1 talebin süresi dolup durumu değiştiyse, veritabanına kaydet
     if durum_degisikligi_var_mi:
         db.commit()
         
@@ -427,3 +427,69 @@ def extend_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...
     req.gecerlilik_suresi_saat += ek_saat
     db.commit()
     return {"message": f"Talep süresi {ek_saat} saat uzatıldı."}
+
+
+# backend/routers/staff.py veya donors.py
+
+@router.post("/confirm-donation/{log_id}")
+def confirm_donation(
+    log_id: uuid.UUID, 
+    alinan_unite: int = Query(1, ge=1),
+    db: Session = Depends(get_db)
+):
+    """Bağışı onaylar: Talepten miktar düşer, donöre puan verir ve cooldown başlatır."""
+    log = db.query(models.NotificationLog).filter(models.NotificationLog.log_id == log_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Kayıt bulunamadı.")
+    
+    talep = log.blood_request
+    user_id = log.user_id
+
+    # 1. Kan Talebinden Üniteyi Düş
+    if talep:
+        talep.unite_sayisi = max(0, talep.unite_sayisi - alinan_unite)
+        if talep.unite_sayisi == 0:
+            talep.durum = models.RequestStatusEnum.TAMAMLANDI
+
+    # 2. Donör Profilini Güncelle (Cooldown)
+    profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
+    if profile:
+        profile.son_bagis_tarihi = datetime.utcnow()
+        profile.kan_verebilir_mi = False 
+    
+    # 3. Bağış Geçmişine Kayıt Ekle
+    new_history = models.DonationHistory(
+        user_id=user_id,
+        kurum_id=talep.kurum_id if talep else None,
+        talep_id=talep.talep_id if talep else None,
+        islem_sonucu=models.DonationResultEnum.BASARILI,
+        bagis_tarihi=datetime.utcnow()
+    )
+    db.add(new_history)
+
+    # 4. Oyunlaştırma
+    gamification = db.query(models.GamificationData).filter(models.GamificationData.user_id == user_id).first()
+    if gamification:
+        gamification.toplam_puan += 100 
+    
+    # 5. Donörün reaksiyonunu kapat
+    log.kullanici_reaksiyonu = models.NotificationReactionEnum.TAMAMLANDI 
+
+    db.commit()
+    return {"status": "success", "message": "Bağış onaylandı."}
+
+
+@router.put("/requests/{talep_id}/complete")
+def complete_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
+    """Talebi personel tarafından manuel olarak başarıyla tamamlandı statüsüne çeker."""
+    req = db.query(models.BloodRequest).filter(
+        models.BloodRequest.talep_id == talep_id, 
+        models.BloodRequest.olusturan_personel_id == personel_id
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı.")
+    
+    req.durum = models.RequestStatusEnum.TAMAMLANDI
+    db.commit()
+    return {"message": "Talep başarıyla tamamlandı olarak işaretlendi."}

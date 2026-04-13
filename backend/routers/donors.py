@@ -143,15 +143,29 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
 def respond_to_notification(user_id: uuid.UUID, log_id: uuid.UUID, reaksiyon: models.NotificationReactionEnum = Query(...), db: Session = Depends(get_db)):
     """Bildirime yanıt verir ve duyarlılık motorunu günceller."""
     log = db.query(models.NotificationLog).filter(models.NotificationLog.log_id == log_id, models.NotificationLog.user_id == user_id).first()
-    if not log or log.kullanici_reaksiyonu != models.NotificationReactionEnum.BEKLIYOR:
-        raise HTTPException(status_code=400, detail="Geçersiz bildirim veya zaten yanıtlanmış.")
+    
+    if not log:
+        raise HTTPException(status_code=404, detail="Geçersiz bildirim.")
 
+    # 🚀 DÜZELTME BURADA: Sadece 'BEKLIYOR' iken değil, 'KABUL' edilmişken de işlem yapılmasına izin ver.
+    if log.kullanici_reaksiyonu not in [models.NotificationReactionEnum.BEKLIYOR, models.NotificationReactionEnum.KABUL]:
+        raise HTTPException(status_code=400, detail="Bu bildirim zaten kapatılmış veya değiştirilemez.")
+
+    # 🚀 YENİ MANTIK: Eğer donör daha önce KABUL etmiş ama şimdi İPTAL ediyorsa (KABUL -> RED)
+    if log.kullanici_reaksiyonu == models.NotificationReactionEnum.KABUL and reaksiyon == models.NotificationReactionEnum.RED:
+        ml_feat = db.query(models.MLFeature).filter(models.MLFeature.user_id == user_id).first()
+        if ml_feat and ml_feat.olumlu_yanit_sayisi > 0:
+            ml_feat.olumlu_yanit_sayisi -= 1 # İptal ettiği için ML modelindeki skoru geri alınıyor
+
+    # Klasik İlk Onay Durumu: (BEKLIYOR -> KABUL)
+    elif log.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR and reaksiyon == models.NotificationReactionEnum.KABUL:
+        ml_feat = db.query(models.MLFeature).filter(models.MLFeature.user_id == user_id).first()
+        if ml_feat: 
+            ml_feat.olumlu_yanit_sayisi += 1
+
+    # Durumu güncelle
     log.kullanici_reaksiyonu = reaksiyon
     log.reaksiyon_zamani = datetime.utcnow()
-    
-    if reaksiyon == models.NotificationReactionEnum.KABUL:
-        ml_feat = db.query(models.MLFeature).filter(models.MLFeature.user_id == user_id).first()
-        if ml_feat: ml_feat.olumlu_yanit_sayisi += 1
         
     db.commit()
     update_donor_sensitivity(db, user_id)

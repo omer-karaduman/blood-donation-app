@@ -17,11 +17,21 @@ class DonorMainScreen extends StatefulWidget {
 class _DonorMainScreenState extends State<DonorMainScreen> {
   int _currentIndex = 0;
 
+  // 🚀 EKLENDİ: Ana sayfadan (DonorHomeTab) tıklamalarla diğer sekmelere geçiş yapabilmek için
+  void _changeTab(int index) {
+    setState(() {
+      _currentIndex = index;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Sekmelerin (Tab'lerin) listesi sırasıyla güncellendi
+    // Sekmelerin (Tab'lerin) listesi
     final List<Widget> tabs = [
-      DonorHomeTab(currentUser: widget.currentUser),
+      DonorHomeTab(
+        currentUser: widget.currentUser,
+        onTabChange: _changeTab, // 🚀 EKLENDİ: Zorunlu olan yönlendirme parametresi
+      ),
       DonorRequestsTab(currentUser: widget.currentUser), // YENİ EKLENDİ
       DonorHistoryTab(currentUser: widget.currentUser),
       DonorGamificationTab(currentUser: widget.currentUser),
@@ -32,7 +42,7 @@ class _DonorMainScreenState extends State<DonorMainScreen> {
       body: IndexedStack(index: _currentIndex, children: tabs),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _changeTab, // 🚀 GÜNCELLENDİ: Alt barda tıklanınca da aynı fonksiyon çalışacak
         selectedItemColor: const Color(0xFFE53935), // Referans aldığın o güzel kırmızı
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed, // 4'ten fazla sekme olduğu için 'fixed' olması kritik

@@ -9,13 +9,10 @@ import '../../../models/donor.dart';
 
 class DonorRequestsTab extends StatefulWidget {
   final Donor currentUser; 
-  // Ana sayfadaki aktif kabul edilmiş görevi takip etmek için (MainScreen'den beslenmeli)
-  final Map<String, dynamic>? activeAcceptedRequest;
-
+  
   const DonorRequestsTab({
     super.key, 
     required this.currentUser, 
-    this.activeAcceptedRequest,
   });
 
   @override
@@ -27,6 +24,9 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
   bool _isBackgroundFetching = false; 
   List<dynamic> _requests = [];
   
+  // 🚀 KESİN ÇÖZÜM: Kullanıcının aktif görevi olup olmadığını kendi içimizde takip ediyoruz
+  bool _hasActiveAcceptedRequest = false; 
+  
   Timer? _cooldownTimer;      
   Timer? _autoRefreshTimer;   
   Duration _timeLeft = Duration.zero;
@@ -37,7 +37,6 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     super.initState();
     _checkCooldown(); 
     
-    // Periyodik yenileme: 30 saniyede bir verileri tazeler
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       if (mounted && !_isCooldown && !_isLoading && !_isBackgroundFetching) {
         _fetchRequests(isSilent: true); 
@@ -100,11 +99,19 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
         if (mounted) {
           setState(() {
             final List<dynamic> rawList = data is List ? data : (data['items'] ?? []);
-            // Sadece 'Bekliyor' olanlar bu listede kalsın
+            
+            // 🚀 KONTROL: Veriler arasında durumu 'Kabul' olan var mı? Varsa kilitleyeceğiz.
+            _hasActiveAcceptedRequest = rawList.any((req) {
+              final reaksiyon = req['reaksiyon'] ?? req['kullanici_reaksiyonu'];
+              return reaksiyon == 'Kabul';
+            });
+
+            // Listede sadece 'Bekliyor' olanları göster
             _requests = rawList.where((req) {
                final reaksiyon = req['reaksiyon'] ?? req['kullanici_reaksiyonu'];
                return reaksiyon == 'Bekliyor' || reaksiyon == null;
             }).toList();
+            
             _isLoading = false;
             _isBackgroundFetching = false;
           });
@@ -142,17 +149,46 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
           );
           _fetchRequests(); 
         }
+      } else {
+        // Hata durumunda ekrana bilgi ver
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text("İşlem gerçekleştirilemedi. Lütfen tekrar deneyin."),
+              backgroundColor: Colors.red.shade700,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) Navigator.pop(context); 
     }
   }
 
-  void _confirmAccept(String logId, String hastaneAdi) {
-    if (widget.activeAcceptedRequest != null) {
-       _showAlreadyHasRequestWarning();
-       return;
+  Future<void> _confirmAccept(String logId, String hastaneAdi) async {
+    // Eğer yerel hafızamız aktif bir görevimiz olduğunu sanıyorsa (belki veri eskimiştir)
+    if (_hasActiveAcceptedRequest) {
+      
+      // Kullanıcıyı hemen engellemek yerine arka planda sunucudan "Hızlı Teyit" alalım
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE53935))),
+      );
+
+      // Verileri sessizce ve anında güncelle
+      await _fetchRequests(isSilent: true);
+      
+      if (mounted) Navigator.pop(context); // Yükleniyor'u kapat
+
+      // Güncel veriyi çektikten sonra HALA aktif görevimiz varsa, şimdi güvenle engelleyebiliriz
+      if (_hasActiveAcceptedRequest) {
+         _showAlreadyHasRequestWarning();
+         return;
+      }
     }
+    
+    // Eğer teyit sonucunda görevimiz olmadığı anlaşıldıysa veya zaten yoksa, onay penceresini aç
     _showConfirmSheet(logId, hastaneAdi);
   }
 
@@ -160,11 +196,31 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text("Aktif Göreviniz Var", style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text("Şu anda zaten kabul ettiğiniz bir kan talebi bulunuyor. Yeni bir talebi kabul etmek için önce mevcut görevinizi tamamlamalı veya ana sayfa üzerinden iptal etmelisiniz."),
+        title: Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Colors.orange.shade800),
+            const SizedBox(width: 8),
+            const Text("Aktif Göreviniz Var", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: const Text(
+          "Şu anda zaten kabul ettiğiniz bir kan talebi bulunuyor. "
+          "Yeni bir talebi kabul etmek için önce mevcut görevinizi tamamlamalı "
+          "veya ana sayfa üzerinden iptal etmelisiniz.",
+          style: TextStyle(color: Colors.blueGrey, height: 1.5),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Anladım", style: TextStyle(color: Color(0xFFE53935), fontWeight: FontWeight.bold))),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context), 
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Anladım", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
         ],
       ),
     );
@@ -289,33 +345,37 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
                         ],
                       ),
                       const SizedBox(height: 24),
-                      // 🚀 BUTONLAR: Expanded ile sarmalanarak layout hatası giderildi
                       Row(
                         children: [
                           Expanded(
-                            child: TextButton(
-                              onPressed: () => _showIgnoreSheet(logId), 
-                              style: TextButton.styleFrom(
-                                backgroundColor: const Color(0xFFF5F5F5), 
-                                foregroundColor: Colors.grey.shade600, 
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
-                                padding: const EdgeInsets.symmetric(vertical: 12)
+                            child: Material(
+                              color: const Color(0xFFF5F5F5),
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () => _showIgnoreSheet(logId),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  alignment: Alignment.center,
+                                  child: Text("İlgilenmiyorum", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600)),
+                                ),
                               ),
-                              child: const Text("İlgilenmiyorum", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: ElevatedButton(
-                              onPressed: () => _confirmAccept(logId, kurumAdi),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFE53935), 
-                                foregroundColor: Colors.white, 
-                                elevation: 0, 
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), 
-                                padding: const EdgeInsets.symmetric(vertical: 12)
+                            child: Material(
+                              color: const Color(0xFFE53935),
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                onTap: () => _confirmAccept(logId, kurumAdi),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  alignment: Alignment.center,
+                                  child: const Text("Kabul Et", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
+                                ),
                               ),
-                              child: const Text("Kabul Et", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                             ),
                           ),
                         ],
@@ -338,8 +398,6 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
       child: Text(text, style: TextStyle(color: isUrgent ? const Color(0xFFC62828) : Colors.orange.shade900, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
     );
   }
-
-  // --- MODAL PANELLER ---
 
   void _showIgnoreSheet(String logId) {
     showModalBottomSheet(
@@ -367,15 +425,27 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300), 
+                      padding: const EdgeInsets.symmetric(vertical: 16), 
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
                     child: const Text("Vazgeç", style: TextStyle(color: Colors.black87)),
                   ),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () { Navigator.pop(context); _respondToRequest(logId, "Red"); },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey.shade800, padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    onPressed: () { 
+                      Navigator.pop(context); 
+                      // 🚀 DÜZELTME: Enum uyumluluğu için "Red" olarak güncellendi.
+                      _respondToRequest(logId, "Red"); 
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueGrey.shade800, 
+                      padding: const EdgeInsets.symmetric(vertical: 16), 
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
                     child: const Text("Gizle", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -413,15 +483,26 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.grey.shade300), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(color: Colors.grey.shade300), 
+                      padding: const EdgeInsets.symmetric(vertical: 16), 
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
                     child: const Text("Vazgeç", style: TextStyle(color: Colors.black87)),
                   ),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () { Navigator.pop(context); _respondToRequest(logId, "Kabul"); },
-                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFE53935), padding: const EdgeInsets.symmetric(vertical: 16), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    onPressed: () { 
+                      Navigator.pop(context); 
+                      _respondToRequest(logId, "Kabul"); 
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFE53935), 
+                      padding: const EdgeInsets.symmetric(vertical: 16), 
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                    ),
                     child: const Text("Onaylıyorum", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                   ),
                 ),

@@ -53,7 +53,8 @@ class NotificationReactionEnum(str, enum.Enum):
     KABUL = 'Kabul'
     RED = 'Red'
     GORMEZDEN_GELDI = 'Gormezden_Geldi'
-
+    TAMAMLANDI = 'Tamamlandi'
+    
 class InstitutionTypeEnum(str, enum.Enum):
     HASTANE = 'Hastane'
     KAN_MERKEZI = 'Kan Merkezi'

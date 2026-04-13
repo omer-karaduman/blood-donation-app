@@ -120,9 +120,11 @@ class BloodRequestCreate(BaseModel):
     gecerlilik_suresi_saat: int = 24
 
 class DonorReactionSummary(BaseModel):
+    log_id: UUID                      
     donor_ad_soyad: str
     reaksiyon: NotificationReactionEnum
-    reaksiyon_zamani: Optional[datetime]
+    reaksiyon_zamani: Optional[datetime] = None
+    ml_score: float = 0.0             
     model_config = ConfigDict(from_attributes=True)
 
 class BloodRequestDetailResponse(BaseModel):
