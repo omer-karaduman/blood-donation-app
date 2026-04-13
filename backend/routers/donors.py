@@ -83,43 +83,60 @@ def register_donor(user_in: schemas.DonorCreate, db: Session = Depends(get_db)):
 
 @router.get("/{user_id}/feed", response_model=List[schemas.DonorFeedResponse])
 def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Donörün bekleyen ve süresi dolmamış kan taleplerini listeler."""
+    """
+    Donörün bekleyen ve süresi dolmamış kan taleplerini listeler. 
+    İptal edilmiş veya süresi dolmuş talepleri otomatik olarak eler.
+    """
+    # 🚀 OPTİMİZASYON 1: Sorguyu en başta daraltıyoruz (Join ve Filter ile)
+    # Sadece AKTIF olan ve donörün henüz yanıt vermediği (BEKLIYOR) kayıtları çekiyoruz.
     my_logs = db.query(models.NotificationLog)\
+                .join(models.BloodRequest)\
                 .options(
                     joinedload(models.NotificationLog.blood_request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.district),
                     joinedload(models.NotificationLog.blood_request).joinedload(models.BloodRequest.institution).joinedload(models.Institution.neighborhood)
                 )\
                 .filter(
                     models.NotificationLog.user_id == user_id,
-                    models.NotificationLog.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR
+                    models.NotificationLog.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR,
+                    models.BloodRequest.durum == models.RequestStatusEnum.AKTIF # 🚀 Sadece aktifleri getir
                 ).all()
     
     feed_data = []
-    su_an = datetime.utcnow() # 🚀 Optimizasyon: Sadece 1 kere çalışsın
+    su_an = datetime.utcnow()
+    durum_degisikligi_var_mi = False
 
     for log in my_logs:
         req = log.blood_request
-        if req and req.durum == models.RequestStatusEnum.AKTIF:
-            bitis_zamani = req.olusturma_tarihi + timedelta(hours=req.gecerlilik_suresi_saat)
-            
-            if su_an < bitis_zamani:
-                feed_data.append({
-                    "log_id": log.log_id, 
-                    "talep_id": req.talep_id,
-                    "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
-                    "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
-                    "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
-                    "istenen_kan_grubu": req.istenen_kan_grubu,
-                    "unite_sayisi": req.unite_sayisi,
-                    "aciliyet_durumu": req.aciliyet_durumu,
-                    "olusturma_tarihi": req.olusturma_tarihi,
-                    "gecerlilik_suresi_saat": req.gecerlilik_suresi_saat 
-                })
-            else:
-                # 🚀 YENİ EKLENDİ: Süresi dolmuşsa sadece gizleme, DB'de de iptal et!
-                req.durum = models.RequestStatusEnum.IPTAL
-                db.commit()
+        if not req:
+            continue
+
+        # 🚀 OPTİMİZASYON 2: Süre Kontrolü
+        bitis_zamani = req.olusturma_tarihi + timedelta(hours=req.gecerlilik_suresi_saat)
+        
+        if su_an < bitis_zamani:
+            # Talep hala geçerli, listeye ekle
+            feed_data.append({
+                "log_id": log.log_id, 
+                "talep_id": req.talep_id,
+                "kurum_adi": req.institution.kurum_adi if req.institution else "Sağlık Kurumu",
+                "ilce": req.institution.district.name if req.institution and req.institution.district else "İzmir",
+                "mahalle": req.institution.neighborhood.name if req.institution and req.institution.neighborhood else "",
+                "istenen_kan_grubu": req.istenen_kan_grubu,
+                "unite_sayisi": req.unite_sayisi,
+                "aciliyet_durumu": req.aciliyet_durumu,
+                "olusturma_tarihi": req.olusturma_tarihi,
+                "gecerlilik_suresi_saat": req.gecerlilik_suresi_saat 
+            })
+        else:
+            # 🚀 Süresi dolmuşsa durumu güncelle (Staff listesinde de otomatik düşer)
+            req.durum = models.RequestStatusEnum.IPTAL
+            durum_degisikligi_var_mi = True
     
+    # Döngü içinde her seferinde commit yapmak yerine, değişiklik varsa bir kere yapıyoruz.
+    if durum_degisikligi_var_mi:
+        db.commit()
+    
+    # En yeni talepler en üstte
     feed_data.sort(key=lambda x: x["olusturma_tarihi"], reverse=True)
     return feed_data
 

@@ -50,43 +50,126 @@ class _BloodRequestDetailScreenState extends State<BloodRequestDetailScreen> {
     super.dispose();
   }
 
-  // ----------------------------------------------------------------------
-  // 📡 API İŞLEMLERİ
-  // ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+// 📡 API İŞLEMLERİ - GÜNCELLENMİŞ İPTAL DİYALOĞU
+// ----------------------------------------------------------------------
 
-  Future<void> _cancelRequest() async {
-    final bool? confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: Colors.white,
-        title: Text("Talebi Durdur", style: TextStyle(color: slateDeep, fontWeight: FontWeight.bold)),
-        content: const Text("Bu kan arama sürecini iptal etmek üzeresiniz. Donör bildirimleri durdurulacaktır."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Vazgeç", style: TextStyle(color: Colors.grey))),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red[400], elevation: 0),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Talebi İptal Et", style: TextStyle(color: Colors.white)),
-          ),
-        ],
+Future<void> _cancelRequest() async {
+  final bool? confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            )
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 🚀 Durdurma/Uyarı İkonu
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.report_problem_rounded, color: Colors.red.shade400, size: 40),
+            ),
+            const SizedBox(height: 20),
+            
+            // Başlık
+            Text(
+              "Talebi Durdur?",
+              style: TextStyle(
+                color: slateDeep,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            
+            // Açıklama
+            Text(
+              "Bu kan arama sürecini iptal etmek üzeresiniz. Aktif donör bildirimleri anında durdurulacaktır. Bu işlem geri alınamaz.",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: slateMedium,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 28),
+            
+            // Butonlar
+            Row(
+              children: [
+                // Vazgeç Butonu
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: BorderSide(color: iceBlue, width: 1.5),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: Text(
+                      "Vazgeç",
+                      style: TextStyle(color: slateMedium, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Onay Butonu (Tehlikeli İşlem)
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade400,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text(
+                      "Talebi Kapat",
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
-    );
+    ),
+  );
 
-    if (confirm != true) return;
-    setState(() => _isCancelling = true);
+  if (confirm != true) return;
+  setState(() => _isCancelling = true);
 
-    try {
-      final url = '${ApiConstants.baseUrl}/staff/requests/${request['talep_id']}/cancel?personel_id=${widget.staffUserId}';
-      final response = await http.put(Uri.parse(url));
-      if (response.statusCode == 200) {
-        setState(() => request['durum'] = 'IPTAL');
-        _showSnack("Talep başarıyla iptal edildi.", Colors.blueGrey);
-      }
-    } finally {
-      if (mounted) setState(() => _isCancelling = false);
+  try {
+    final url = '${ApiConstants.baseUrl}/staff/requests/${request['talep_id']}/cancel?personel_id=${widget.staffUserId}';
+    final response = await http.put(Uri.parse(url));
+    if (response.statusCode == 200) {
+      setState(() => request['durum'] = 'Iptal');
+      _showSnack("Talep başarıyla sonlandırıldı.", Colors.blueGrey);
     }
+  } finally {
+    if (mounted) setState(() => _isCancelling = false);
   }
+}
 
   Future<void> _extendRequest(int extraHours) async {
     setState(() => _isExtending = true);
@@ -363,8 +446,8 @@ class _BloodRequestDetailScreenState extends State<BloodRequestDetailScreen> {
 
   // 🚀 FONKSİYONEL YARDIMCILAR
   Map<String, dynamic> _calculateTimeLeft() {
-    if (request['durum'] == 'IPTAL' || request['durum'] == 'SURESI_DOLDU') {
-      return {"text": "Talep Pasif", "color": Colors.red[300]};
+    if (request['durum'] == 'Iptal' || request['durum'] == 'SURESI_DOLDU') {
+      return {"text": "Talep İptal Edildi", "color": Colors.red[300]};
     }
     try {
       DateTime start = DateTime.parse("${request['olusturma_tarihi']}Z").toLocal();

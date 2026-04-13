@@ -378,7 +378,7 @@ def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.put("/requests/{talep_id}/cancel")
 def cancel_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
-    """Talebi iptal eder. Sadece aktif talepler iptal edilebilir."""
+    """Talebi iptal eder ve donörlerin listesinden kaldırılmasını sağlar."""
     req = db.query(models.BloodRequest).filter(
         models.BloodRequest.talep_id == talep_id, 
         models.BloodRequest.olusturan_personel_id == personel_id
@@ -388,11 +388,24 @@ def cancel_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...
         raise HTTPException(status_code=404, detail="Talep bulunamadı veya yetkiniz yok.")
         
     if req.durum != models.RequestStatusEnum.AKTIF:
-        raise HTTPException(status_code=400, detail="Bu talep zaten iptal edilmiş, tamamlanmış veya süresi dolmuş.")
+        raise HTTPException(status_code=400, detail="Bu talep zaten aktif değil.")
 
+    # 1. Ana talebin durumunu IPTAL yap
     req.durum = models.RequestStatusEnum.IPTAL
+
+    # 2. 🚀 KRİTİK: Bu talebe ait "BEKLEYEN" bildirimleri "GORMEZDEN_GELDI" (veya silindi) statüsüne çek
+    # Böylece donör tarafındaki feed sorgusu bunları getirmeyecektir.
+    db.query(models.NotificationLog).filter(
+        models.NotificationLog.talep_id == talep_id,
+        models.NotificationLog.kullanici_reaksiyonu == models.NotificationReactionEnum.BEKLIYOR
+    ).update({"kullanici_reaksiyonu": models.NotificationReactionEnum.GORMEZDEN_GELDI})
+
     db.commit()
-    return {"message": "Talep başarıyla iptal edildi."}
+    
+    # (Opsiyonel) Eğer talep çok acilse ve kabul eden donörler varsa 
+    # onlara "Talep iptal edildi, gelmenize gerek yok" bildirimi de atılabilir.
+    
+    return {"message": "Talep ve bağlı bildirimler başarıyla iptal edildi."}
 
 
 # backend/routers/staff.py dosyasına eklenecek:
