@@ -2,10 +2,11 @@ import os
 import joblib
 import pandas as pd
 import uuid
-from datetime import datetime
+# 🚀 timedelta EKLENDİ
+from datetime import datetime, timedelta 
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
@@ -13,6 +14,8 @@ import models
 import schemas
 from database import get_db
 from services.notification_service import notify_donor
+
+
 # Personel ve Talep endpointleri için prefix (ön ek) tanımlıyoruz
 router = APIRouter(
     prefix="/staff",
@@ -22,7 +25,6 @@ router = APIRouter(
 # ======================================================================
 # --- ML MODELİNİ YÜKLE ---
 # ======================================================================
-# Dosya artık routers/ klasöründe olduğu için bir üst dizine (backend) çıkıyoruz
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 MODEL_PATH = os.path.join(BASE_DIR, "ml_models", "donor_rf_model.pkl")
@@ -234,7 +236,7 @@ def create_smart_blood_request(
 
 @router.get("/my-requests", response_model=List[schemas.BloodRequestDetailResponse])
 def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Personelin kendi taleplerini ve ML önerilerinin sonuçlarını izlemesini sağlar."""
+    """Personelin kendi taleplerini ve ML önerilerinin sonuçlarını izlemesini sağlar. (Süresi dolanları otomatik iptal eder)"""
     requests = db.query(models.BloodRequest)\
                  .options(joinedload(models.BloodRequest.bildirimler).joinedload(models.NotificationLog.user))\
                  .filter(models.BloodRequest.olusturan_personel_id == personel_id)\
@@ -242,7 +244,18 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
                  .all()
     
     output = []
+    su_an = datetime.utcnow()
+    durum_degisikligi_var_mi = False
+
     for r in requests:
+        # 🚀 AŞAMA 1: SÜRE KONTROLÜ VE OTOMATİK İPTAL
+        if r.durum == models.RequestStatusEnum.AKTIF:
+            bitis_zamani = r.olusturma_tarihi + timedelta(hours=r.gecerlilik_suresi_saat)
+            if su_an >= bitis_zamani:
+                r.durum = models.RequestStatusEnum.IPTAL
+                durum_degisikligi_var_mi = True
+
+        # AŞAMA 2: DONÖR YANITLARINI TOPLA
         donor_yanitlari = []
         for b in r.bildirimler:
             donor_yanitlari.append({
@@ -255,10 +268,16 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
             "talep_id": r.talep_id,
             "istenen_kan_grubu": r.istenen_kan_grubu,
             "unite_sayisi": r.unite_sayisi,
-            "durum": r.durum,
+            "durum": r.durum, # Eğer az önce IPTAL olduysa, UI'a güncel halini gönderir
             "olusturma_tarihi": r.olusturma_tarihi,
-            "donor_yanitlari": donor_yanitlari
+            "donor_yanitlari": donor_yanitlari,
+            "gecerlilik_suresi_saat": r.gecerlilik_suresi_saat
         })
+        
+    # Eğer listedeki en az 1 talebin süresi dolup durumu değiştiyse, veritabanına kaydet
+    if durum_degisikligi_var_mi:
+        db.commit()
+        
     return output
 
 
@@ -353,3 +372,45 @@ def delete_staff(user_id: uuid.UUID, db: Session = Depends(get_db)):
     if user: db.delete(user)
     db.commit()
     return {"message": "Silindi"}
+
+
+
+
+@router.put("/requests/{talep_id}/cancel")
+def cancel_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...), db: Session = Depends(get_db)):
+    """Talebi iptal eder. Sadece aktif talepler iptal edilebilir."""
+    req = db.query(models.BloodRequest).filter(
+        models.BloodRequest.talep_id == talep_id, 
+        models.BloodRequest.olusturan_personel_id == personel_id
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı veya yetkiniz yok.")
+        
+    if req.durum != models.RequestStatusEnum.AKTIF:
+        raise HTTPException(status_code=400, detail="Bu talep zaten iptal edilmiş, tamamlanmış veya süresi dolmuş.")
+
+    req.durum = models.RequestStatusEnum.IPTAL
+    db.commit()
+    return {"message": "Talep başarıyla iptal edildi."}
+
+
+# backend/routers/staff.py dosyasına eklenecek:
+
+@router.put("/requests/{talep_id}/extend")
+def extend_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...), ek_saat: int = Query(...), db: Session = Depends(get_db)):
+    """Aktif bir talebin geçerlilik süresini (saat olarak) uzatır."""
+    req = db.query(models.BloodRequest).filter(
+        models.BloodRequest.talep_id == talep_id, 
+        models.BloodRequest.olusturan_personel_id == personel_id
+    ).first()
+    
+    if not req:
+        raise HTTPException(status_code=404, detail="Talep bulunamadı veya yetkiniz yok.")
+        
+    if req.durum != models.RequestStatusEnum.AKTIF:
+        raise HTTPException(status_code=400, detail="Sadece aktif taleplerin süresi uzatılabilir.")
+
+    req.gecerlilik_suresi_saat += ek_saat
+    db.commit()
+    return {"message": f"Talep süresi {ek_saat} saat uzatıldı."}

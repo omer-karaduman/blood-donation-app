@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'dart:async'; // 🚀 Timer için eklendi
 import '../../../constants/api_constants.dart';
 
 class DonorRequestsTab extends StatefulWidget {
@@ -15,18 +16,61 @@ class DonorRequestsTab extends StatefulWidget {
 class _DonorRequestsTabState extends State<DonorRequestsTab> {
   bool _isLoading = true;
   List<dynamic> _requests = [];
+  
+  // 🚀 SAYAÇ İÇİN DEĞİŞKENLER
+  Timer? _timer;
+  Duration _timeLeft = Duration.zero;
+  bool _isCooldown = false;
 
   @override
   void initState() {
     super.initState();
+    _checkCooldown(); // İlk olarak süreyi kontrol et
+  }
+
+  // 🚀 KAN VERME SÜRESİNİ KONTROL ET
+  void _checkCooldown() {
+    if (widget.currentUser.sonBagisTarihi != null) {
+      // Erkeklerde 90, Kadınlarda 120 gün kuralı
+      int waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
+      final nextDate = widget.currentUser.sonBagisTarihi!.add(Duration(days: waitDays));
+      final now = DateTime.now();
+
+      if (now.isBefore(nextDate)) {
+        setState(() => _isCooldown = true);
+        _startTimer(nextDate);
+        return; // Bekleme süresindeyse alttaki fetch çalışmasın
+      }
+    }
+    // Eğer bekleme süresi yoksa veya hiç kan vermediyse talepleri çek
     _fetchRequests();
+  }
+
+  // 🚀 SAYACI BAŞLAT
+  void _startTimer(DateTime target) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final diff = target.difference(DateTime.now());
+      if (diff.isNegative) {
+        setState(() => _isCooldown = false);
+        _timer?.cancel();
+        _fetchRequests(); // Sayım bittiğinde hemen yeni talepleri çek
+      } else {
+        setState(() => _timeLeft = diff);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // Memory leak olmaması için sayfadan çıkınca sayacı durdur
+    super.dispose();
   }
 
   // 📡 KAN TALEPLERİNİ (FEED) ÇEK
   Future<void> _fetchRequests() async {
     setState(() => _isLoading = true);
     try {
-      final url = ApiConstants.donorFeedEndpoint(widget.currentUser.userId);
+      final url = ApiConstants.donorFeedEndpoint(widget.currentUser.id); // .id veya .userId (kendi modeline göre)
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
@@ -46,16 +90,14 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
 
   // 🤝 TALEBE YANIT VER (Kabul veya Red)
   Future<void> _respondToRequest(String logId, String reaction) async {
-    // Reaksiyonlar backend enum: 'Kabul', 'Red', 'Gormezden_Geldi' vs.
     try {
-      // Yükleniyor dialogu göster
       showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFFE53935))),
       );
 
-      final url = "${ApiConstants.donorsEndpoint}/${widget.currentUser.userId}/respond/$logId?reaksiyon=$reaction";
+      final url = "${ApiConstants.donorsEndpoint}/${widget.currentUser.id}/respond/$logId?reaksiyon=$reaction";
       final response = await http.post(Uri.parse(url));
 
       Navigator.pop(context); // Dialogu kapat
@@ -72,7 +114,7 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bir hata oluştu. Tekrar deneyin.")));
       }
     } catch (e) {
-      Navigator.pop(context); // Dialogu kapat
+      Navigator.pop(context); 
       debugPrint("❌ Yanıt verme hatası: $e");
     }
   }
@@ -105,6 +147,12 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
 
   @override
   Widget build(BuildContext context) {
+    // 🚀 Eğer bekleme süresindeyse (cooldown) senin ekran yerine sayacı göster
+    if (_isCooldown) {
+      return _buildTimerUI();
+    }
+
+    // Bekleme süresinde DEĞİLSE senin yazdığın standart ekran
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: Column(
@@ -132,7 +180,86 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
-  // 🔴 ÜST BİLGİ ALANI
+  // ==========================================
+  // 🚀 TİP 1: SAYAÇ EKRANI (Yeni Eklenen)
+  // ==========================================
+  Widget _buildTimerUI() {
+    return Scaffold(
+      body: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Color(0xFF2C3E50), Color(0xFF4CA1AF)], // Dinlendirici Mavi Tonları
+            begin: Alignment.topCenter, 
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.favorite_rounded, size: 80, color: Colors.white70),
+                const SizedBox(height: 30),
+                const Text(
+                  "Harika Bir İş Çıkardın!",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  "Vücudunun yeni kan üretmesi ve dinlenmesi için zamana ihtiyacı var. Kendi sağlığın için bir sonraki bağışına kadar beklemen gerekiyor.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white60, fontSize: 15, height: 1.4),
+                ),
+                const SizedBox(height: 40),
+                _timerDisplay(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _timerDisplay() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _timeCard("${_timeLeft.inDays}", "GÜN"),
+        _timeSep(),
+        _timeCard("${_timeLeft.inHours.remainder(24)}".padLeft(2, '0'), "SAAT"),
+        _timeSep(),
+        _timeCard("${_timeLeft.inMinutes.remainder(60)}".padLeft(2, '0'), "DAKİKA"),
+        _timeSep(),
+        _timeCard("${_timeLeft.inSeconds.remainder(60)}".padLeft(2, '0'), "SANİYE"),
+      ],
+    );
+  }
+
+  Widget _timeCard(String val, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(15)),
+          child: Text(val, style: const TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.bold)),
+        ),
+        const SizedBox(height: 8),
+        Text(label, style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+      ],
+    );
+  }
+
+  Widget _timeSep() => const Padding(
+    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 15), 
+    child: Text(":", style: TextStyle(color: Colors.white24, fontSize: 26, fontWeight: FontWeight.bold))
+  );
+
+  // ==========================================
+  // 🚀 TİP 2: NORMAL FEED EKRANI (Senin Kodun)
+  // ==========================================
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -158,7 +285,6 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
-  // 📭 BOŞ DURUM (Talep Yoksa)
   Widget _buildEmptyState() {
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -192,9 +318,7 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
-  // 🏥 TEKİL KAN TALEBİ KARTI
   Widget _buildRequestCard(Map<String, dynamic> item) {
-    // Güvenli veri çekimi
     final String logId = item['log_id']?.toString() ?? "";
     final String kurumAdi = item['kurum_adi'] ?? "Sağlık Kurumu";
     final String kanGrubu = item['istenen_kan_grubu'] ?? "?";
@@ -216,20 +340,17 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
       ),
       child: Column(
         children: [
-          // ÜST KISIM (Bilgiler)
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hastane İkonu
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(color: badgeColor.withOpacity(0.1), borderRadius: BorderRadius.circular(15)),
                   child: Icon(Icons.local_hospital, color: badgeColor, size: 28),
                 ),
                 const SizedBox(width: 15),
-                // Hastane, Konum ve Badge
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,17 +407,14 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
               ],
             ),
           ),
-          
           const Divider(height: 1, color: Color(0xFFEEEEEE)),
-          
-          // ALT KISIM (Aksiyon Butonları)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => _respondToRequest(logId, "Red"), // Reddet aksiyonu
+                    onPressed: () => _respondToRequest(logId, "Red"),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.grey.shade600,
                       side: BorderSide(color: Colors.grey.shade300),
@@ -309,7 +427,7 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () => _confirmAccept(logId, kurumAdi), // Kabul Et aksiyonu
+                    onPressed: () => _confirmAccept(logId, kurumAdi),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFE53935),
                       elevation: 0,

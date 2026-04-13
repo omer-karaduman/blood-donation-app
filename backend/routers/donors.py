@@ -95,11 +95,14 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
                 ).all()
     
     feed_data = []
+    su_an = datetime.utcnow() # 🚀 Optimizasyon: Sadece 1 kere çalışsın
+
     for log in my_logs:
         req = log.blood_request
         if req and req.durum == models.RequestStatusEnum.AKTIF:
             bitis_zamani = req.olusturma_tarihi + timedelta(hours=req.gecerlilik_suresi_saat)
-            if datetime.utcnow() < bitis_zamani:
+            
+            if su_an < bitis_zamani:
                 feed_data.append({
                     "log_id": log.log_id, 
                     "talep_id": req.talep_id,
@@ -112,6 +115,10 @@ def get_donor_feed(user_id: uuid.UUID, db: Session = Depends(get_db)):
                     "olusturma_tarihi": req.olusturma_tarihi,
                     "gecerlilik_suresi_saat": req.gecerlilik_suresi_saat 
                 })
+            else:
+                # 🚀 YENİ EKLENDİ: Süresi dolmuşsa sadece gizleme, DB'de de iptal et!
+                req.durum = models.RequestStatusEnum.IPTAL
+                db.commit()
     
     feed_data.sort(key=lambda x: x["olusturma_tarihi"], reverse=True)
     return feed_data
@@ -151,7 +158,6 @@ def get_donor_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Profil bulunamadı.")
     return profile
 
-# backend/routers/donors.py
 
 @router.put("/{user_id}/update")
 def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
@@ -169,7 +175,6 @@ def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = De
         profile.neighborhood_id = uuid.UUID(n_id) if n_id else None
         
     # 🌍 Coğrafi Konum (Latitude/Longitude) Güncelleme
-    # Mobil taraftan hesaplanıp gönderilen koordinatları PostGIS formatına çeviriyoruz
     if "latitude" in update_data and "longitude" in update_data:
         lat = update_data["latitude"]
         lon = update_data["longitude"]
@@ -181,10 +186,9 @@ def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = De
 
 @router.get("/{user_id}/history")
 def get_donor_history(user_id: str, db: Session = Depends(get_db)):
-    # joinedload kısmını modelde tanımladığın isme göre düzelt
     history = db.query(models.DonationHistory)\
         .filter(models.DonationHistory.user_id == user_id)\
-        .all() # Eğer ilişki henüz kurulmadıysa .options(...) kısmını geçici olarak silebilirsin
+        .all() 
     return history
 
 

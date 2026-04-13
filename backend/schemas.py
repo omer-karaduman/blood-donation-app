@@ -62,6 +62,7 @@ class DonorProfileResponse(BaseModel):
     ad_soyad: str
     telefon: str  # YENİ EKLENDİ
     kilo: float   # YENİ EKLENDİ
+    cinsiyet: GenderEnum
     kan_grubu: BloodTypeEnum
     kan_verebilir_mi: bool
     son_bagis_tarihi: Optional[datetime] = None
@@ -130,6 +131,7 @@ class BloodRequestDetailResponse(BaseModel):
     unite_sayisi: int
     durum: RequestStatusEnum
     olusturma_tarihi: datetime
+    gecerlilik_suresi_saat: int
     donor_yanitlari: List[DonorReactionSummary] = []
     model_config = ConfigDict(from_attributes=True)
 

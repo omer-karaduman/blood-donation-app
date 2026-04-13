@@ -26,9 +26,23 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen> {
   int unitCount = 1;
   String urgency = "Normal";
   
+  // 🚀 YENİ EKLENEN: Geçerlilik Süresi (Varsayılan 24 Saat)
+  int _selectedDurationHours = 24; 
+  
   bool _isLoading = false; // Çift tıklamayı önlemek için loading state
 
   final List<String> bloodTypes = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+  
+  // 🚀 YENİ EKLENEN: Süre Seçenekleri
+  final List<Map<String, dynamic>> _durationOptions = [
+    {"label": "6 Saat", "value": 6},
+    {"label": "12 Saat", "value": 12},
+    {"label": "24 Saat (1 Gün)", "value": 24},
+    {"label": "48 Saat (2 Gün)", "value": 48},
+    {"label": "72 Saat (3 Gün)", "value": 72},
+    {"label": "168 Saat (1 Hafta)", "value": 168},
+    {"label": "336 Saat (2 Hafta)", "value": 336},
+  ];
 
   Future<void> submitRequest() async {
     if (selectedBloodType == null) {
@@ -41,7 +55,6 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Artık hardcoded ID yerine login olan personelin gerçek ID'si gidiyor
       final response = await http.post(
         Uri.parse('${ApiConstants.requestsEndpoint}?personel_id=${widget.staffUserId}'),
         headers: {"Content-Type": "application/json"},
@@ -49,6 +62,7 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen> {
           "istenen_kan_grubu": selectedBloodType,
           "unite_sayisi": unitCount,
           "aciliyet_durumu": urgency,
+          "gecerlilik_suresi_saat": _selectedDurationHours, // 🚀 Backend'e süre gönderiliyor
         }),
       );
 
@@ -120,6 +134,12 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen> {
                   _buildSectionTitle("Aciliyet Durumu"),
                   const SizedBox(height: 12),
                   _buildUrgencySelector(),
+                  
+                  // 🚀 YENİ EKLENEN: Geçerlilik Süresi UI Alanı
+                  const SizedBox(height: 32),
+                  _buildSectionTitle("Talebin Geçerlilik Süresi"),
+                  const SizedBox(height: 12),
+                  _buildDurationSelector(),
                   
                   const SizedBox(height: 50),
                   
@@ -214,6 +234,31 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen> {
             );
           }).toList(),
           onChanged: (val) => setState(() => selectedBloodType = val),
+        ),
+      ),
+    );
+  }
+  
+  // 🚀 YENİ EKLENEN: Süre Seçici Widget'ı
+  Widget _buildDurationSelector() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: _selectedDurationHours,
+          isExpanded: true,
+          items: _durationOptions.map((option) {
+            return DropdownMenuItem<int>(
+              value: option["value"] as int, 
+              child: Text(option["label"] as String, style: const TextStyle(fontWeight: FontWeight.bold))
+            );
+          }).toList(),
+          onChanged: (val) => setState(() => _selectedDurationHours = val!),
         ),
       ),
     );
