@@ -1,15 +1,22 @@
 // mobile/lib/constants/api_constants.dart
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart'; // Sadece bu import yeterli!
 
 class ApiConstants {
-  // 🚀 SUNUCU ADRESİ
-  // Canlı (Render) adresi veya yerel test adresi
-  //static String get baseUrl => 'https://blood-donation-app-lhrk.onrender.com';
-  static String get baseUrl => 'http://localhost:8000'; // Yerel test için
-
-  // ==========================================
-  // ENDPOINT'LER
-  // ==========================================
+  // 🚀 AKILLI SUNUCU ADRESİ (Platformlar arası en güvenli yöntem)
+  static String get baseUrl {
+    if (kIsWeb) {
+      // Web tarayıcısında çalışıyorsa
+      return 'http://localhost:8000';
+    } else if (defaultTargetPlatform == TargetPlatform.android) {
+      // 🚀 Android Emülatör köprüsü
+      return 'http://10.0.2.2:8000';
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // iOS Simülatör
+      return 'http://localhost:8000'; 
+    }
+    
+    return 'http://localhost:8000';
+  }
 
   // --- Auth (Kimlik Doğrulama) ---
   static String get loginEndpoint => '$baseUrl/auth/login';

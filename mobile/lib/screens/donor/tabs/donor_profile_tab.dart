@@ -1,9 +1,11 @@
 // mobile/lib/screens/donor/tabs/donor_profile_tab.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../constants/api_constants.dart';
+import '../../login_screen.dart'; // 🚀 Çıkış yapınca yönlendirmek için eklendi
 
 class DonorProfileTab extends StatefulWidget {
   final dynamic currentUser;
@@ -48,11 +50,53 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
           _profileData = json.decode(utf8.decode(response.bodyBytes));
           _isLoading = false;
         });
+      } else {
+        debugPrint("❌ Profil çekilemedi. Backend kodu: ${response.statusCode}");
+        setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint("❌ Profil hatası: $e");
       setState(() => _isLoading = false);
     }
+  }
+
+  // 🚪 ÇIKIŞ YAPMA DİYALOĞU
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout_rounded, color: Color(0xFFE53935)),
+            SizedBox(width: 10),
+            Text("Çıkış Yap", style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: const Text("Hesabınızdan çıkmak istediğinize emin misiniz?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), // Sadece pencereyi kapatır
+            child: const Text("İptal", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // 🚀 Tüm geçmiş sayfaları (stack) silerek Login ekranına yönlendirir
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
+                (Route<dynamic> route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text("Çıkış", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // 📝 AD, TELEFON, KİLO DÜZENLEME MODALI
@@ -121,7 +165,6 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     String? sDId;
     String? sNId;
     
-    // Güvenli ID okuma
     if (_profileData?['neighborhood'] != null && _profileData?['neighborhood'] is Map) {
       if (_profileData!['neighborhood']['district_id'] != null) {
         sDId = _profileData!['neighborhood']['district_id'].toString();
@@ -166,7 +209,6 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
               const SizedBox(height: 25),
               ElevatedButton(
                 onPressed: sNId == null ? null : () async {
-                  // Seçilen mahalle ve ilçe isimlerini bulup koordinat hesapla
                   final dName = _districts.firstWhere((d) => d['district_id'].toString() == sDId)['name'];
                   final nName = nList.firstWhere((n) => n['neighborhood_id'].toString() == sNId)['name'];
                   _processLocationAndSave(sNId!, dName, nName);
@@ -197,7 +239,7 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
         lat = double.parse(data[0]['lat']);
         lon = double.parse(data[0]['lon']);
       } else {
-        debugPrint("OSM Koordinat bulamadı, sadece neighborhood_id güncellenecek.");
+        debugPrint("OSM Koordinat bulamadı.");
       }
     } catch (e) { 
       debugPrint("❌ Geocoding hatası: $e"); 
@@ -207,7 +249,6 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       "neighborhood_id": neighborhoodId,
     };
     
-    // Sadece koordinat bulabildiysek gönderiyoruz, yoksa null gitmesin.
     if (lat != null && lon != null) {
       updateData["latitude"] = lat;
       updateData["longitude"] = lon;
@@ -223,7 +264,6 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     try {
       final url = ApiConstants.donorProfileUpdateEndpoint(widget.currentUser.userId);
       
-      // Mevcut verileri KESİN OLARAK koru, gelenleri üstüne yaz. Null ezmesini engelle.
       final Map<String, dynamic> payload = {
         "ad_soyad": newData['ad_soyad'] ?? _profileData?['ad_soyad'],
         "telefon": newData['telefon'] ?? _profileData?['telefon'],
@@ -240,7 +280,7 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       );
 
       if (response.statusCode == 200) {
-        await _fetchProfileFromServer(); // Başarılıysa veriyi tekrar sunucudan çekip UI günceller
+        await _fetchProfileFromServer(); 
       } else {
         debugPrint("Hata: Backend ${response.statusCode} döndürdü.");
       }
@@ -257,14 +297,19 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: Color(0xFFE53935))));
     }
 
-    // Gerçek İlçe ve Mahalle İsimleri (Güvenli Çekim)
     String mahalle = "Bilinmiyor";
     String ilce = "İlçe Seçilmedi";
+    String email = widget.currentUser.email;
 
-    if (_profileData?['neighborhood'] != null && _profileData?['neighborhood'] is Map) {
-      mahalle = _profileData!['neighborhood']['name'] ?? "Bilinmiyor";
-      if (_profileData!['neighborhood']['district'] != null) {
-        ilce = _profileData!['neighborhood']['district']['name'] ?? "İlçe Seçilmedi";
+    if (_profileData != null) {
+      if (_profileData!['neighborhood'] != null && _profileData!['neighborhood'] is Map) {
+        mahalle = _profileData!['neighborhood']['name'] ?? "Bilinmiyor";
+        if (_profileData!['neighborhood']['district'] != null && _profileData!['neighborhood']['district'] is Map) {
+          ilce = _profileData!['neighborhood']['district']['name'] ?? "İlçe Seçilmedi";
+        }
+      }
+      if (_profileData!['user'] != null && _profileData!['user'] is Map) {
+        email = _profileData!['user']['email'] ?? widget.currentUser.email;
       }
     }
 
@@ -272,7 +317,7 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
       backgroundColor: const Color(0xFFF8F9FA),
       body: Column(
         children: [
-          _buildHeader(),
+          _buildHeader(), // Stack yapısına geçirildi (içinde ikon var)
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -281,7 +326,6 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
                 _buildInfoTile("Telefon (11 Hane)", _profileData?['telefon'] ?? "Eklenmemiş", Icons.phone_android, "telefon"),
                 _buildInfoTile("Kilo (kg)", "${_profileData?['kilo'] ?? 0}", Icons.monitor_weight_outlined, "kilo"),
                 
-                // 📍 KONUM KARTI
                 Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15)),
@@ -300,7 +344,7 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
                   child: Text("Sistem Bilgileri", style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
                 _buildStaticTile("Kan Grubu", _profileData?['kan_grubu'] ?? "?", Icons.bloodtype, const Color(0xFFE53935)),
-                _buildStaticTile("E-posta", widget.currentUser.email, Icons.email_outlined, Colors.blueGrey),
+                _buildStaticTile("E-posta", email, Icons.email_outlined, Colors.blueGrey),
               ],
             ),
           ),
@@ -309,22 +353,36 @@ class _DonorProfileTabState extends State<DonorProfileTab> {
     );
   }
 
+  // 🚀 HEADER KISMI STACK İLE DEĞİŞTİRİLDİ (BUTON BURADA)
   Widget _buildHeader() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 60, bottom: 30),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
-        borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
-      ),
-      child: Column(
-        children: [
-          const CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.person, size: 45, color: Color(0xFFE53935))),
-          const SizedBox(height: 12),
-          Text(_profileData?['ad_soyad'] ?? "Donör", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-          const Text("Gönüllü Bağışçı", style: TextStyle(color: Colors.white70, fontSize: 13)),
-        ],
-      ),
+    return Stack(
+      children: [
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.only(top: 60, bottom: 30),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(colors: [Color(0xFFE53935), Color(0xFFB71C1C)]),
+            borderRadius: BorderRadius.only(bottomLeft: Radius.circular(40), bottomRight: Radius.circular(40)),
+          ),
+          child: Column(
+            children: [
+              const CircleAvatar(radius: 40, backgroundColor: Colors.white, child: Icon(Icons.person, size: 45, color: Color(0xFFE53935))),
+              const SizedBox(height: 12),
+              Text(_profileData?['ad_soyad'] ?? "Donör", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text("Gönüllü Bağışçı", style: TextStyle(color: Colors.white70, fontSize: 13)),
+            ],
+          ),
+        ),
+        // SAĞ ÜST KÖŞE ÇIKIŞ BUTONU
+        Positioned(
+          top: 45,
+          right: 15,
+          child: IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 28),
+            onPressed: _showLogoutDialog, // Diyaloğu çağırır
+          ),
+        ),
+      ],
     );
   }
 

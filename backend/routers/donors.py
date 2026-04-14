@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import models
 import schemas
 from database import get_db
+import enum
 
 router = APIRouter(
     prefix="/donors",
@@ -175,19 +176,48 @@ def respond_to_notification(user_id: uuid.UUID, log_id: uuid.UUID, reaksiyon: mo
 # PROFİL, GEÇMİŞ VE OYUNLAŞTIRMA
 # ---------------------------------------------------------
 
-@router.get("/{user_id}/profile", response_model=schemas.DonorProfileResponse)
+@router.get("/{user_id}/profile")
 def get_donor_profile(user_id: uuid.UUID, db: Session = Depends(get_db)):
-    """Donörün profil detaylarını ilişkili konum verileriyle birlikte getirir."""
+    """Donör profilini, kullanıcı ve tam konum hiyerarşisiyle (İlçe dahil) döner."""
     profile = db.query(models.DonorProfile)\
                 .options(
                     joinedload(models.DonorProfile.neighborhood).joinedload(models.Neighborhood.district),
                     joinedload(models.DonorProfile.user)
                 )\
                 .filter(models.DonorProfile.user_id == user_id).first()
+    
     if not profile:
         raise HTTPException(status_code=404, detail="Profil bulunamadı.")
-    return profile
+    
+    mahalle_adi = "Bilinmiyor"
+    ilce_adi = "İlçe Seçilmedi"
+    
+    if profile.neighborhood:
+        mahalle_adi = profile.neighborhood.name
+        if profile.neighborhood.district:
+            ilce_adi = profile.neighborhood.district.name
 
+    return {
+        "user_id": str(profile.user_id),
+        "ad_soyad": profile.ad_soyad,
+        "telefon": profile.telefon,
+        "cinsiyet": profile.cinsiyet,
+        "kilo": profile.kilo,
+        "kan_grubu": profile.kan_grubu,
+        "kan_verebilir_mi": profile.kan_verebilir_mi,
+        # 🚀 İŞTE EKSİK OLAN VE SAYACI BOZAN SATIR GERİ GELDİ:
+        "son_bagis_tarihi": profile.son_bagis_tarihi.isoformat() if profile.son_bagis_tarihi else None,
+        "neighborhood_id": str(profile.neighborhood_id) if profile.neighborhood_id else None,
+        "user": {
+            "email": profile.user.email if profile.user else "E-posta Yok"
+        },
+        "neighborhood": {
+            "name": mahalle_adi,
+            "district": {
+                "name": ilce_adi
+            }
+        }
+    }
 
 @router.put("/{user_id}/update")
 def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = Depends(get_db)):
@@ -215,11 +245,52 @@ def update_donor_profile(user_id: uuid.UUID, update_data: dict, db: Session = De
     return {"status": "success"}
 
 @router.get("/{user_id}/history")
-def get_donor_history(user_id: str, db: Session = Depends(get_db)):
-    history = db.query(models.DonationHistory)\
-        .filter(models.DonationHistory.user_id == user_id)\
-        .all() 
-    return history
+def get_donor_history(user_id: uuid.UUID, db: Session = Depends(get_db)):
+    """Donörün bağış geçmişini ÇÖKMEYECEK %100 güvenli bir JSON olarak paketler."""
+    try:
+        history_records = db.query(models.DonationHistory)\
+            .options(joinedload(models.DonationHistory.institution))\
+            .filter(models.DonationHistory.user_id == user_id)\
+            .order_by(models.DonationHistory.bagis_tarihi.desc())\
+            .all()
+
+        result = []
+        for record in history_records:
+            # 🛡️ 1. GÜVENLİK: Durum (Enum) verisini kesin olarak metne (String) çevirme
+            status_str = "Beklemede"
+            if record.islem_sonucu:
+                if hasattr(record.islem_sonucu, 'value'):
+                    status_str = record.islem_sonucu.value
+                elif isinstance(record.islem_sonucu, enum.Enum):
+                    status_str = record.islem_sonucu.name
+                else:
+                    status_str = str(record.islem_sonucu)
+
+            # 🛡️ 2. GÜVENLİK: Hastane bilgilerini Null-Safe olarak alma
+            institution_data = None
+            if record.institution:
+                institution_data = {
+                    "kurum_id": str(record.institution.kurum_id),
+                    "kurum_adi": record.institution.kurum_adi
+                }
+
+            # 🛡️ 3. GÜVENLİK: Tüm UUID ve Tarihleri güvenle String formata dönüştürme
+            result.append({
+                "bagis_id": str(record.bagis_id),
+                "user_id": str(record.user_id),
+                "kurum_id": str(record.kurum_id) if record.kurum_id else None,
+                "talep_id": str(record.talep_id) if record.talep_id else None,
+                "bagis_tarihi": record.bagis_tarihi.isoformat() if record.bagis_tarihi else None,
+                "islem_sonucu": status_str,
+                "institution": institution_data
+            })
+
+        return result
+
+    except Exception as e:
+        # Eğer sunucuda bir hata olursa terminale yazdır, böylece ne olduğunu tam görebiliriz
+        print(f"❌ BAĞIŞ GEÇMİŞİ ÇEKİLİRKEN KRİTİK HATA: {e}")
+        raise HTTPException(status_code=500, detail=f"Sunucu Hatası: {str(e)}")
 
 
 @router.get("/{user_id}/gamification")

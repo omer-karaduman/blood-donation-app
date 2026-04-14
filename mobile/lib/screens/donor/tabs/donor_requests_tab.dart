@@ -53,22 +53,51 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
 
   // --- MANTIK ---
 
-  void _checkCooldown() {
-    if (widget.currentUser.sonBagisTarihi != null) {
-      int waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
-      final nextDate = widget.currentUser.sonBagisTarihi!.add(Duration(days: waitDays));
-      final now = DateTime.now();
+  // 📡 SUNUCUDAN EN GÜNCEL TARİHİ ÇEKEREK SAYAÇ KONTROLÜ YAP (KESİN ÇÖZÜM)
+  // 📡 SUNUCUDAN EN GÜNCEL TARİHİ ÇEKEREK SAYAÇ KONTROLÜ YAP
+  Future<void> _checkCooldown() async {
+    try {
+      final url = ApiConstants.donorProfileEndpoint(widget.currentUser.userId);
+      final response = await http.get(Uri.parse(url));
 
-      if (now.isBefore(nextDate)) {
-        setState(() {
-          _isCooldown = true;
-          _isLoading = false;
-        });
-        _startCooldownTimer(nextDate);
-        return; 
+      if (response.statusCode == 200) {
+        final data = json.decode(utf8.decode(response.bodyBytes));
+        final String? sonBagisTarihiStr = data['son_bagis_tarihi'];
+
+        if (sonBagisTarihiStr != null && sonBagisTarihiStr.isNotEmpty) {
+          
+          // 🚀 SAAT DİLİMİ (TIMEZONE) DÜZELTMESİ
+          // Backend'den gelen tarihe 'Z' ekleyip UTC olduğunu belirtiyoruz, 
+          // ardından toLocal() ile Türkiye (UTC+3) saatine %100 isabetli çeviriyoruz.
+          String safeDateStr = sonBagisTarihiStr;
+          if (!safeDateStr.endsWith('Z')) safeDateStr += 'Z';
+          
+          DateTime sonBagis = DateTime.parse(safeDateStr).toLocal();
+
+          int waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
+          final nextDate = sonBagis.add(Duration(days: waitDays));
+          final now = DateTime.now();
+
+          if (now.isBefore(nextDate)) {
+            if (mounted) {
+              setState(() {
+                _isCooldown = true;
+                _isLoading = false;
+              });
+              _startCooldownTimer(nextDate);
+              return; 
+            }
+          }
+        }
       }
+    } catch (e) {
+      debugPrint("❌ Sayaç için güncel profil çekilemedi: $e");
     }
-    _fetchRequests();
+
+    if (mounted) {
+      setState(() => _isCooldown = false);
+      _fetchRequests();
+    }
   }
 
   void _startCooldownTimer(DateTime target) {
@@ -285,6 +314,7 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
+  // 🏥 TALEP KARTI OLUŞTURUCU
   Widget _buildRequestCard(Map<String, dynamic> item) {
     final String logId = item['log_id']?.toString() ?? "";
     final String kurumAdi = item['kurum_adi']?.toString() ?? "Bilinmeyen Hastane";
@@ -294,10 +324,15 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     String remainingText = "Hesaplanıyor...";
     try {
       if (item['olusturma_tarihi'] != null) {
-        DateTime createdAt = DateTime.parse("${item['olusturma_tarihi']}Z").toLocal();
+        // 🚀 SAAT DİLİMİ DÜZELTMESİ (Talep Kartları İçin)
+        String dateStr = item['olusturma_tarihi'].toString();
+        if (!dateStr.endsWith('Z')) dateStr += 'Z';
+        
+        DateTime createdAt = DateTime.parse(dateStr).toLocal();
         int durationHours = item['gecerlilik_suresi_saat'] ?? 24; 
         DateTime expiresAt = createdAt.add(Duration(hours: durationHours));
         Duration remaining = expiresAt.difference(DateTime.now());
+        
         if (!remaining.isNegative) {
           remainingText = "${remaining.inHours}s ${remaining.inMinutes.remainder(60)}dk kaldı";
         } else {
@@ -528,31 +563,95 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
+  // ⏳ SANIYE EKLENMİŞ YENİ VE MODERN SAYAÇ EKRANI
   Widget _buildTimerUI({Key? key}) {
     return Scaffold(
       key: key,
-      backgroundColor: const Color(0xFF1A237E),
+      backgroundColor: const Color(0xFFF4F6F8),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.hourglass_empty_rounded, size: 80, color: Colors.white54),
-            const SizedBox(height: 30),
-            const Text("İyileşme Sürecindesiniz", style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 50),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [_timeBox("${_timeLeft.inDays}", "GÜN"), _timeBox("${_timeLeft.inHours.remainder(24)}", "SAAT"), _timeBox("${_timeLeft.inMinutes.remainder(60)}", "DAK")]),
-          ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20), // Ekran kenarı boşluğunu biraz kıstık
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // 🟠 İkon Kutusu
+              Container(
+                padding: const EdgeInsets.all(30),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.timer_rounded, size: 70, color: Colors.orange.shade600),
+              ),
+              const SizedBox(height: 30),
+              
+              // 📝 Başlık
+              const Text(
+                "Dinlenme Sürecindesiniz",
+                style: TextStyle(color: Color(0xFF2D3142), fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+              ),
+              const SizedBox(height: 12),
+              
+              // 📝 Açıklama
+              const Text(
+                "Vücudunuzun toparlanması için gereken süreyi bekliyorsunuz. Bir sonraki kan bağışınızı yapabilmenize kalan süre:",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Color(0xFF9098B1), fontSize: 15, height: 1.5),
+              ),
+              const SizedBox(height: 40),
+              
+              // ⏳ 4'LÜ SAYAÇ KARTLARI (Saniye Eklendi)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _timeBox("${_timeLeft.inDays}", "GÜN"),
+                  const SizedBox(width: 8),
+                  _timeBox("${_timeLeft.inHours.remainder(24)}", "SAAT"),
+                  const SizedBox(width: 8),
+                  _timeBox("${_timeLeft.inMinutes.remainder(60)}", "DAKİKA"),
+                  const SizedBox(width: 8),
+                  // 🚀 YENİ EKLENEN SANİYE KUTUSU
+                  _timeBox("${_timeLeft.inSeconds.remainder(60)}", "SANİYE"), 
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  // 🕒 4 KUTUYA GÖRE OPTİMİZE EDİLMİŞ SAYAÇ KUTULARI
   Widget _timeBox(String value, String label) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 10),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-      child: Column(children: [Text(value, style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold)), Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12))]),
+      width: 75, // 4 kutu sığsın diye genişlik 90'dan 75'e düşürüldü
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade100),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF9098B1).withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          Text(
+            // Eğer saniye veya dakika tek haneliyse başına '0' koyarak daha şık gösterir (Örn: 9 yerine 09)
+            value.padLeft(2, '0'), 
+            style: const TextStyle(color: Color(0xFFE53935), fontSize: 26, fontWeight: FontWeight.w900)
+          ),
+          const SizedBox(height: 6),
+          Text(
+            label, 
+            style: const TextStyle(color: Color(0xFF9098B1), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)
+          ),
+        ],
+      ),
     );
   }
 }
