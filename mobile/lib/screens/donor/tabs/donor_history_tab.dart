@@ -1,4 +1,3 @@
-// mobile/lib/screens/donor/tabs/donor_history_tab.dart
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -24,7 +23,9 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
 
   // 📡 GEÇMİŞ BAĞIŞLARI ÇEK
   Future<void> _fetchHistory() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
+    
     try {
       final url = ApiConstants.donorHistoryEndpoint(widget.currentUser.userId);
       final response = await http.get(Uri.parse(url));
@@ -36,41 +37,43 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
         });
       } else {
         debugPrint("Hata: Backend ${response.statusCode} döndürdü.");
-        setState(() => _isLoading = false);
+        if (mounted) setState(() => _isLoading = false);
       }
     } catch (e) {
       debugPrint("❌ Bağış geçmişi çekilemedi: $e");
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   // 🎨 DURUMA GÖRE RENK VE İKON BELİRLEYİCİ
   Map<String, dynamic> _getStatusConfig(String? status) {
+    // Backend 'Basarili' veya 'Reddedildi' gönderiyor
     String s = (status ?? '').toLowerCase();
-    if (s.contains('başarılı') || s.contains('success') || s.contains('completed')) {
+    
+    if (s == 'basarili' || s == 'success' || s == 'basarılı') {
       return {"color": Colors.green, "icon": Icons.check_circle_outline, "label": "Başarılı"};
-    } else if (s.contains('red') || s.contains('iptal') || s.contains('rejected') || s.contains('failed')) {
+    } else if (s == 'reddedildi' || s == 'red' || s == 'failed') {
       return {"color": Colors.red, "icon": Icons.cancel_outlined, "label": "Reddedildi"};
     } else {
       return {"color": Colors.orange, "icon": Icons.hourglass_empty, "label": "Beklemede"};
     }
   }
 
-  // 🕒 TARİH FORMATLAYICI (Örn: 2026-02-12T10:00:00 -> 12.02.2026)
+  // 🕒 TARİH FORMATLAYICI
   String _formatDate(String? dateStr) {
     if (dateStr == null || dateStr.isEmpty) return "Tarih Belirtilmemiş";
     try {
-      final dt = DateTime.parse(dateStr);
+      final dt = DateTime.parse(dateStr).toLocal();
       return "${dt.day.toString().padLeft(2, '0')}.${dt.month.toString().padLeft(2, '0')}.${dt.year}";
     } catch (e) {
-      return dateStr; // Parse edilemezse olduğu gibi göster
+      return dateStr;
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Profile sayfası ile aynı arka plan
+      backgroundColor: const Color(0xFFF8F9FA),
       body: Column(
         children: [
           _buildHeader(),
@@ -97,7 +100,6 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
     );
   }
 
-  // 🔴 ÜST BİLGİ ALANI (Profile sayfasıyla uyumlu)
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -123,13 +125,16 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
     );
   }
 
-  // 🏥 BAĞIŞ KARTI TASARIMI
+  // 🏥 BAĞIŞ KARTI TASARIMI (GÜNCELLENDİ)
   Widget _buildHistoryCard(Map<String, dynamic> item) {
-    // Backend'den gelecek olası anahtarlara göre güvenli çekim (Kendi backend'ine göre buradaki 'hospital_name' vb. güncelleyebilirsin)
-    final hospitalName = item['hospital_name'] ?? item['institution_name'] ?? item['hospital'] ?? "Bilinmeyen Hastane";
-    final rawDate = item['donation_date'] ?? item['date'];
-    final rawStatus = item['status'] ?? item['result'];
-    final notes = item['notes'] ?? item['reason'] ?? ""; // Eğer red sebebi vb. varsa
+    // 🚀 DÜZELTME: Backend'deki 'institution' objesi içinden 'kurum_adi' çekiliyor
+    final hospitalName = item['institution']?['kurum_adi'] ?? "Bilinmeyen Hastane";
+    
+    // 🚀 DÜZELTME: Backend 'bagis_tarihi' anahtarını kullanıyor
+    final rawDate = item['bagis_tarihi'];
+    
+    // 🚀 DÜZELTME: Backend 'islem_sonucu' anahtarını kullanıyor
+    final rawStatus = item['islem_sonucu'];
 
     final statusConfig = _getStatusConfig(rawStatus);
 
@@ -150,7 +155,6 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Hastane İkonu
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
@@ -160,7 +164,6 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
                   child: const Icon(Icons.local_hospital, color: Color(0xFFE53935), size: 24),
                 ),
                 const SizedBox(width: 15),
-                // Hastane ve Tarih
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -188,11 +191,9 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
             const SizedBox(height: 15),
             const Divider(height: 1, color: Color(0xFFEEEEEE)),
             const SizedBox(height: 15),
-            // Durum Rozeti ve Notlar
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Durum Rozeti
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
@@ -211,22 +212,7 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
                     ],
                   ),
                 ),
-                // Ekstra Bilgi/Not Varsa Göster
-                if (notes.isNotEmpty)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 10),
-                      child: Text(
-                        notes,
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontStyle: FontStyle.italic),
-                      ),
-                    ),
-                  )
-                else
-                  const Text("1 Ünite", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
+                const Text("1 Ünite", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black54)),
               ],
             )
           ],
@@ -235,7 +221,6 @@ class _DonorHistoryTabState extends State<DonorHistoryTab> {
     );
   }
 
-  // 📭 BOŞ DURUM EKRANI
   Widget _buildEmptyState() {
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),

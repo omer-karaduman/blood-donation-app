@@ -432,16 +432,13 @@ def extend_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(...
 # backend/routers/staff.py veya donors.py
 
 @router.post("/confirm-donation/{log_id}")
-def confirm_donation(
-    log_id: uuid.UUID, 
-    alinan_unite: int = Query(1, ge=1),
-    db: Session = Depends(get_db)
-):
+def confirm_donation(log_id: uuid.UUID, alinan_unite: int = Query(1, ge=1), db: Session = Depends(get_db)):
     """Bağışı onaylar: Talepten miktar düşer, donöre puan verir ve cooldown başlatır."""
     log = db.query(models.NotificationLog).filter(models.NotificationLog.log_id == log_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Kayıt bulunamadı.")
     
+    # NotificationLog modelindeki ilişki adı 'blood_request' olarak tanımlı
     talep = log.blood_request
     user_id = log.user_id
 
@@ -449,9 +446,10 @@ def confirm_donation(
     if talep:
         talep.unite_sayisi = max(0, talep.unite_sayisi - alinan_unite)
         if talep.unite_sayisi == 0:
-            talep.durum = models.RequestStatusEnum.TAMAMLANDI
+            # 🚀 .value kullanımı DataError'u engeller
+            talep.durum = models.RequestStatusEnum.TAMAMLANDI.value
 
-    # 2. Donör Profilini Güncelle (Cooldown)
+    # 2. Donör Profilini Güncelle (Cooldown başlat)
     profile = db.query(models.DonorProfile).filter(models.DonorProfile.user_id == user_id).first()
     if profile:
         profile.son_bagis_tarihi = datetime.utcnow()
@@ -462,18 +460,19 @@ def confirm_donation(
         user_id=user_id,
         kurum_id=talep.kurum_id if talep else None,
         talep_id=talep.talep_id if talep else None,
-        islem_sonucu=models.DonationResultEnum.BASARILI,
+        islem_sonucu=models.DonationResultEnum.BASARILI.value, # 🚀 .value eklendi
         bagis_tarihi=datetime.utcnow()
     )
     db.add(new_history)
 
-    # 4. Oyunlaştırma
+    # 4. Oyunlaştırma (Puan Ekleme)
     gamification = db.query(models.GamificationData).filter(models.GamificationData.user_id == user_id).first()
     if gamification:
         gamification.toplam_puan += 100 
     
-    # 5. Donörün reaksiyonunu kapat
-    log.kullanici_reaksiyonu = models.NotificationReactionEnum.TAMAMLANDI 
+    # 5. Bildirim Kaydını Kapat
+    # 🚀 En kritik nokta: Veritabanındaki 'Tamamlandi' değerini gönderir
+    log.kullanici_reaksiyonu = models.NotificationReactionEnum.TAMAMLANDI.value
 
     db.commit()
     return {"status": "success", "message": "Bağış onaylandı."}
@@ -488,8 +487,10 @@ def complete_blood_request(talep_id: uuid.UUID, personel_id: uuid.UUID = Query(.
     ).first()
     
     if not req:
-        raise HTTPException(status_code=404, detail="Talep bulunamadı.")
+        raise HTTPException(status_code=404, detail="Talep bulunamadı veya yetkiniz yok.")
     
-    req.durum = models.RequestStatusEnum.TAMAMLANDI
+    # 🚀 DÜZELTME: Buraya .value eklendi, aksi halde Enum ismi (Büyük harf) gönderilir ve hata verir.
+    req.durum = models.RequestStatusEnum.TAMAMLANDI.value
+    
     db.commit()
     return {"message": "Talep başarıyla tamamlandı olarak işaretlendi."}

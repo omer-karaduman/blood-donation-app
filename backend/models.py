@@ -49,7 +49,7 @@ class NotificationDeliveryEnum(str, enum.Enum):
     BASARISIZ = 'Basarisiz'
 
 class NotificationReactionEnum(str, enum.Enum):
-    BEKLIYOR = 'Bekliyor' # YENİ EKLENDİ: Bildirim ilk gittiğinde bu statüde olur
+    BEKLIYOR = 'Bekliyor' 
     KABUL = 'Kabul'
     RED = 'Red'
     GORMEZDEN_GELDI = 'Gormezden_Geldi'
@@ -65,7 +65,7 @@ class District(Base):
     __tablename__ = "districts"
     district_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name = Column(String, nullable=False, index=True)
-    city_code = Column(Integer, default=35) # İzmir
+    city_code = Column(Integer, default=35) 
 
     neighborhoods = relationship("Neighborhood", back_populates="district", cascade="all, delete-orphan")
     institutions = relationship("Institution", back_populates="district")
@@ -87,7 +87,7 @@ class User(Base):
     user_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(SQLEnum(UserRoleEnum), nullable=False, default=UserRoleEnum.DONOR)
+    role = Column(SQLEnum(UserRoleEnum, values_callable=lambda x: [e.value for e in x]), nullable=False, default=UserRoleEnum.DONOR)
     is_active = Column(Boolean, default=True)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
 
@@ -103,13 +103,12 @@ class DonorProfile(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), primary_key=True)
     ad_soyad = Column(String, nullable=False)
     telefon = Column(String, unique=True, nullable=False)
-    cinsiyet = Column(SQLEnum(GenderEnum), nullable=False)
+    cinsiyet = Column(SQLEnum(GenderEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     dogum_tarihi = Column(DateTime, nullable=False)
     kilo = Column(Float, nullable=False)
-    kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
+    kan_grubu = Column(SQLEnum(BloodTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     son_bagis_tarihi = Column(DateTime, nullable=True)
     kan_verebilir_mi = Column(Boolean, default=True)
-    fcm_token = Column(String, nullable=True)
     # Lokasyon Verileri
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=True)
     neighborhood_id = Column(UUID(as_uuid=True), ForeignKey("neighborhoods.neighborhood_id"), nullable=True)
@@ -129,10 +128,9 @@ class Institution(Base):
     __tablename__ = "institutions"
     kurum_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     kurum_adi = Column(String, nullable=False, index=True)
-    tipi = Column(SQLEnum(InstitutionTypeEnum), nullable=False) 
+    tipi = Column(SQLEnum(InstitutionTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=False) 
     parent_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"), nullable=True)
     
-    # Konum ve Adres (İlçe string'den ID'ye çekildi)
     konum = Column(Geometry(geometry_type='POINT', srid=4326), nullable=False)
     district_id = Column(UUID(as_uuid=True), ForeignKey("districts.district_id"), nullable=True)
     neighborhood_id = Column(UUID(as_uuid=True), ForeignKey("neighborhoods.neighborhood_id"), nullable=True)
@@ -177,14 +175,11 @@ class BloodRequest(Base):
     talep_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     kurum_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"))
     olusturan_personel_id = Column(UUID(as_uuid=True), ForeignKey("users.user_id"), nullable=False)
-    istenen_kan_grubu = Column(SQLEnum(BloodTypeEnum), nullable=False)
+    istenen_kan_grubu = Column(SQLEnum(BloodTypeEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     unite_sayisi = Column(Integer, nullable=False)
-    aciliyet_durumu = Column(SQLEnum(UrgencyEnum), default=UrgencyEnum.NORMAL)
-    
-    # 🚀 YENİ EKLENDİ: Talebin geçerlilik süresi (Saat cinsinden, varsayılan 24 saat)
+    aciliyet_durumu = Column(SQLEnum(UrgencyEnum, values_callable=lambda x: [e.value for e in x]), default=UrgencyEnum.NORMAL)
     gecerlilik_suresi_saat = Column(Integer, default=24) 
-    
-    durum = Column(SQLEnum(RequestStatusEnum), default=RequestStatusEnum.AKTIF)
+    durum = Column(SQLEnum(RequestStatusEnum, values_callable=lambda x: [e.value for e in x]), default=RequestStatusEnum.AKTIF)
     olusturma_tarihi = Column(DateTime, default=datetime.utcnow)
 
     personel = relationship("User", foreign_keys=[olusturan_personel_id])
@@ -198,7 +193,7 @@ class DonationHistory(Base):
     kurum_id = Column(UUID(as_uuid=True), ForeignKey("institutions.kurum_id"))
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=True)
     bagis_tarihi = Column(DateTime, default=datetime.utcnow)
-    islem_sonucu = Column(SQLEnum(DonationResultEnum), nullable=False)
+    islem_sonucu = Column(SQLEnum(DonationResultEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
     institution = relationship("Institution", back_populates="donations")
     donor = relationship("DonorProfile", back_populates="donation_history")
 
@@ -208,13 +203,9 @@ class MLFeature(Base):
     toplam_bildirim_sayisi = Column(Integer, default=0)
     olumlu_yanit_sayisi = Column(Integer, default=0)
     basarili_bagis_sayisi = Column(Integer, default=0)
-    
-    # YENİ EKLENDİ: None hatası almamak için varsayılan saat ataması
     tercih_edilen_saatler = Column(JSONB, default=[12, 15, 18]) 
     maks_kabul_mesafesi = Column(Float, nullable=True)
     ml_tahmin_skoru = Column(Float, default=0.0)
-    
-    # YENİ EKLENDİ: Modelin temel parametresi, varsayılan değer 3 (Nötr)
     duyarlilik_seviyesi = Column(Integer, default=3)
 
     donor = relationship("DonorProfile", back_populates="ml_features")
@@ -246,10 +237,8 @@ class NotificationLog(Base):
     talep_id = Column(UUID(as_uuid=True), ForeignKey("blood_requests.talep_id"), nullable=False)
     ml_skoru_o_an = Column(Float, nullable=True) 
     gonderim_zamani = Column(DateTime, default=datetime.utcnow)
-    iletilme_durumu = Column(SQLEnum(NotificationDeliveryEnum), nullable=False)
-    
-    # YENİ DEĞİŞTİRİLDİ: Bildirim atıldığında durumu varsayılan olarak "Bekliyor" olmalı
-    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum), default=NotificationReactionEnum.BEKLIYOR) 
+    iletilme_durumu = Column(SQLEnum(NotificationDeliveryEnum, values_callable=lambda x: [e.value for e in x]), nullable=False)
+    kullanici_reaksiyonu = Column(SQLEnum(NotificationReactionEnum, values_callable=lambda x: [e.value for e in x]), default=NotificationReactionEnum.BEKLIYOR) 
     reaksiyon_zamani = Column(DateTime, nullable=True) 
 
     user = relationship("User", back_populates="notification_logs")

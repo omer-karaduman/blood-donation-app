@@ -29,6 +29,7 @@ class ApiConstants {
   static String get staffEndpoint => '$baseUrl/staff'; 
   static String get requestsEndpoint => '$baseUrl/staff/requests';
   static String get myRequestsEndpoint => '$baseUrl/staff/my-requests';
+  static String confirmDonationEndpoint(String logId) => '$staffEndpoint/confirm-donation/$logId';
 
   // --- Institutions (Kurum ve Hastaneler) ---
   static String get institutionsEndpoint => '$baseUrl/institutions';

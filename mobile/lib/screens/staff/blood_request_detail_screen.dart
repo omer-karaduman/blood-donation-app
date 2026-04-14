@@ -388,17 +388,16 @@ class _BloodRequestDetailScreenState extends State<BloodRequestDetailScreen> {
           // 🚀 EĞER KABUL ETTİYSE: "BAĞIŞI AL" BUTONU (Talebin aktif olması şart)
         if (reaction == 'Kabul' && isRequestActive)
           ElevatedButton(
-            onPressed: () {
-              // 🚀 ESNEK ID TESPİTİ: Backend'den hangi isimle gelirse gelsin yakalarız
-              final dynamic rawLogId = r['log_id'] ?? r['id'] ?? r['notification_id'];
-              final String? logId = rawLogId?.toString();
+           onPressed: () {
+              // 🚀 DOĞRU ESNEK ID TESPİTİ
+              final dynamic rawId = r['log_id'] ?? r['id'] ?? r['notification_id'];
+              final String? logId = rawId?.toString(); 
               
               if (logId != null && logId != "null" && logId.isNotEmpty) {
-                _showDonationUnitDialog(logId, r['donor_ad_soyad'] ?? "Bilinmeyen Donör");
+                  _showDonationUnitDialog(logId, r['donor_ad_soyad'] ?? "Bilinmeyen Donör");
               } else {
-                // 🚨 HATA AYIKLAMA: Eğer hala bulamıyorsa veriyi Snackbar ile gösterir
-                _showSnack("ID bulunamadı! Gelen veri anahtarları: ${r.keys.toList()}", Colors.red);
-                debugPrint("Hatalı Donör Verisi: $r");
+                  print("Hata: Gelen donör verisinde ID bulunamadı. Veri: $r");
+                  _showSnack("Kayıt ID'si bulunamadı!", Colors.red);
               }
             },
             style: ElevatedButton.styleFrom(
