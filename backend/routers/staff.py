@@ -270,6 +270,7 @@ def get_staff_requests(personel_id: uuid.UUID, db: Session = Depends(get_db)):
             "istenen_kan_grubu": r.istenen_kan_grubu,
             "unite_sayisi": r.unite_sayisi,
             "durum": r.durum,
+            "aciliyet_durumu": r.aciliyet_durumu,  # 🚀 BU SATIR EKLENECEK
             "olusturma_tarihi": r.olusturma_tarihi,
             "donor_yanitlari": donor_yanitlari,
             "gecerlilik_suresi_saat": r.gecerlilik_suresi_saat

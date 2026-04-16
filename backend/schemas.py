@@ -134,6 +134,7 @@ class BloodRequestDetailResponse(BaseModel):
     durum: RequestStatusEnum
     olusturma_tarihi: datetime
     gecerlilik_suresi_saat: int
+    aciliyet_durumu: UrgencyEnum  # 🚀 BU SATIR EKLENECEK
     donor_yanitlari: List[DonorReactionSummary] = []
     model_config = ConfigDict(from_attributes=True)
 
