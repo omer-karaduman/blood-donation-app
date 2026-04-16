@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:async';
 import '../../../constants/api_constants.dart';
 import '../../../models/donor.dart';
+import '../ai_agent/ai_chat_screen.dart'; // 🚀 YENİ EKLENDİ: Chat ekranı bağlantısı
 
 class DonorHomeTab extends StatefulWidget {
   final Donor currentUser;
@@ -184,10 +185,27 @@ class _DonorHomeTabState extends State<DonorHomeTab> {
 
   // ── BUILD ──────────────────────────────────────────────────────────────────
 
-  @override
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
+      
+      // 🚀 YENİ EKLENDİ: Sağ altta duracak olan AI Asistan Balonu
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AiChatScreen(currentUser: widget.currentUser),
+            ),
+          );
+        },
+        backgroundColor: _crimson, // Tema kırmızımız
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: const Icon(Icons.auto_awesome, color: Colors.white), // Yapay zeka ikonu
+      ),
+
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: _crimson))
           : RefreshIndicator(

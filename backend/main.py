@@ -5,7 +5,7 @@ import models
 from database import engine
 
 # ROUTER'LARIN İÇERİ AKTARILMASI
-from routers import admin, auth, donors, institutions, locations, staff, users
+from routers import admin, auth, donors, institutions, locations, staff, users, ai_agent
 
 # ======================================================================
 # --- VERİTABANI ÖN HAZIRLIK (PostGIS Entegrasyonu) ---
@@ -43,6 +43,7 @@ app.include_router(staff.router)
 app.include_router(admin.router)
 app.include_router(institutions.router)
 app.include_router(locations.router)
+app.include_router(ai_agent.router)
 
 @app.get("/", tags=["Root"])
 def read_root():

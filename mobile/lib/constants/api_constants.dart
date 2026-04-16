@@ -49,4 +49,8 @@ class ApiConstants {
   // --- Admin (Sistem Özeti ve Loglar) ---
   static String get adminSummaryEndpoint => '$baseUrl/admin/summary';
   static String get adminLogsEndpoint => '$baseUrl/admin/system-logs';
+
+
+  // --- AI Agent (Yapay Zeka Asistanı) ---
+  static String get aiChatEndpoint => '$baseUrl/api/ai/chat';
 }
