@@ -125,8 +125,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ── Veri okuma fonksiyonları ──
   String _getRole() {
     try {
-      if (widget.currentUser == null || widget.currentUser.role == null)
+      if (widget.currentUser == null || widget.currentUser.role == null) {
         return 'donor';
+      }
       return widget.currentUser.role.toString().split('.').last.toLowerCase();
     } catch (e) {
       return 'donor';
@@ -300,32 +301,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
                   child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: Colors.white.withOpacity(0.25)),
-                          ),
-                          child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 16,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      const Expanded(
+                    children: const [
+                      // Geri butonu kaldırıldı, başlık eklendi.
+                      Expanded(
                         child: Text(
                           "Profilim",
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: 24,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.3,
                           ),
