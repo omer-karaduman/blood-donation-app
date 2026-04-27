@@ -3,116 +3,96 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import '../../../constants/api_constants.dart';
+import 'dart:async';
+import 'dart:math' as math;
+import '../../../../../core/constants/api_constants.dart';
 import '../../../models/donor.dart';
 
 class AiChatScreen extends StatefulWidget {
   final Donor currentUser;
-
   const AiChatScreen({super.key, required this.currentUser});
 
   @override
   State<AiChatScreen> createState() => _AiChatScreenState();
 }
 
-class _AiChatScreenState extends State<AiChatScreen> {
-  final TextEditingController _controller = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
+class _AiChatScreenState extends State<AiChatScreen>
+    with TickerProviderStateMixin {
+  // ── State ──────────────────────────────────────────────────────────────────
+
+  final _controller = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  final List<_ChatMessage> _messages = [];
   bool _isTyping = false;
 
-  // ── Tema renkleri ────────────────────────────────
-  static const _crimson = Color(0xFFC0182A);
-  static const _crimsonDark = Color(0xFF8B0000);
-  static const _bg = Color(0xFFF5F5F7);
-  static const _surface = Colors.white;
-  static const _textPrimary = Color(0xFF1C1C1E);
-  static const _textSecondary = Color(0xFF8E8E93);
+  // ── Animasyonlar ───────────────────────────────────────────────────────────
 
-  // ── Öneri chip'leri ────────────────────────────────────────────────────────
-  final List<String> _suggestions = [
-    "Bağışa uygun muyum?",
-    "Süreç nasıl işler?",
-    "Bağış öncesi beslenme",
-    "Yakın merkez bul",
+  late AnimationController _dotCtrl;
+  late AnimationController _headerCtrl;
+  late Animation<double> _headerAnim;
+
+  // ── Tema ───────────────────────────────────────────────────────────────────
+
+  static const _gradTop    = Color(0xFF0D1B2A);
+  static const _gradMid    = Color(0xFF1B2838);
+  static const _accent     = Color(0xFFC0182A);
+  static const _accentGlow = Color(0xFF8B0019);
+  static const _surface    = Color(0xFF1E2D3D);
+  static const _surfaceL   = Color(0xFF243447);
+  static const _textW      = Colors.white;
+  static const Color _textD = Color(0xFFB0BEC5);
+  static const _inputBg    = Color(0xFF162030);
+
+  static const _suggestions = [
+    'Kan bağışı hakkında bilgi ver',
+    'A+ kan grubu kimlere verir?',
+    'Bağış öncesi nelere dikkat etmeliyim?',
+    'Kan bağışının faydaları neler?',
+    'Kaç günde bir bağış yapılabilir?',
   ];
 
-  final List<Map<String, dynamic>> _messages = [
-    {
-      "isAi": true,
-      "text":
-          "Merhaba! Ben Kan Bağışı Asistanınım. 🩸\n\nBağış süreci, uygunluk koşulları veya yakın merkezler hakkında sorularını yanıtlayabilirim. Sana nasıl yardımcı olabilirim?",
-      "time": "Şimdi",
-      "showSuggestions": true,
-    }
-  ];
+  @override
+  void initState() {
+    super.initState();
 
-  // ── API / Mesaj Gönderme ───────────────────────────────────────────────────
+    _dotCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
 
-  void _sendMessage([String? quickText]) async {
-    final text = quickText ?? _controller.text.trim();
-    if (text.isEmpty) return;
+    _headerCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 700));
+    _headerAnim =
+        CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOutBack);
+    _headerCtrl.forward();
 
-    setState(() {
-      _messages.add({"isAi": false, "text": text, "time": _nowTime()});
-      _isTyping = true;
-    });
-    _controller.clear();
-    _scrollToBottom();
-
-    String aiResponse = "";
-
-    try {
-      // 🚀 Backend'e POST isteği atıyoruz
-      // Not: ApiConstants.baseUrl Android emülatör için genelde "http://10.0.2.2:8000" olmalıdır
-      final url = Uri.parse(ApiConstants.aiChatEndpoint);
-      final response = await http.post(
-        url,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({
-          'message': text,
-          'user_id': widget.currentUser.userId,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        // Türkçe karakter sorunu yaşamamak için utf8.decode kullanıyoruz
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        aiResponse = data['reply'] ?? "Yanıt alınamadı.";
-      } else {
-        aiResponse = "Üzgünüm, şu an sunucuya bağlanamıyorum. (Hata: ${response.statusCode})";
-      }
-    } catch (e) {
-      aiResponse = "Bir bağlantı hatası oluştu. Sunucu çalışıyor mu?";
-      debugPrint("AI Chat Hatası: $e");
-    }
-
-    if (mounted) {
-      setState(() {
-        _messages.add({
-          "isAi": true,
-          "text": aiResponse,
-          "time": _nowTime(),
-          "showSuggestions": false,
-        });
-        _isTyping = false;
-      });
-      _scrollToBottom();
-    }
+    // Hoş geldiniz mesajı
+    _messages.add(_ChatMessage(
+      text: 'Merhaba ${widget.currentUser.adSoyad.split(" ").first}! 👋\n\n'
+          'Ben KanAI asistanınım. Kan bağışı, sağlık ve randevu konularında sorularınızı yanıtlayabilirim.\n\n'
+          'Size nasıl yardımcı olabilirim?',
+      isAi: true,
+      time: _formatTime(DateTime.now()),
+      showSuggestions: true,
+    ));
   }
 
-  String _nowTime() {
-    final now = DateTime.now();
-    return "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}";
+  @override
+  void dispose() {
+    _dotCtrl.dispose();
+    _headerCtrl.dispose();
+    _controller.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
   }
+
+  String _formatTime(DateTime dt) =>
+      '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -120,294 +100,376 @@ class _AiChatScreenState extends State<AiChatScreen> {
     });
   }
 
+  Future<void> _sendMessage([String? preset]) async {
+    final text = preset ?? _controller.text.trim();
+    if (text.isEmpty || _isTyping) return;
+
+    if (preset == null) _controller.clear();
+
+    setState(() {
+      _messages.add(_ChatMessage(
+        text: text,
+        isAi: false,
+        time: _formatTime(DateTime.now()),
+      ));
+      _isTyping = true;
+    });
+    _scrollToBottom();
+
+    try {
+      final res = await http.post(
+        Uri.parse(ApiConstants.aiChatEndpoint),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'message': text,
+          'user_id': widget.currentUser.userId,
+          'kan_grubu': widget.currentUser.kanGrubu,
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (!mounted) return;
+      String reply = 'Bir hata oluştu. Lütfen tekrar deneyin.';
+      if (res.statusCode == 200) {
+        final data = json.decode(utf8.decode(res.bodyBytes));
+        reply = data['reply'] ?? data['response'] ?? data['message'] ?? reply;
+      }
+
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(
+          text: reply,
+          isAi: true,
+          time: _formatTime(DateTime.now()),
+        ));
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(
+          text: 'Sunucuya ulaşılamadı. Lütfen bağlantınızı kontrol edin.',
+          isAi: true,
+          time: _formatTime(DateTime.now()),
+        ));
+      });
+    }
+    _scrollToBottom();
+  }
+
   // ── BUILD ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
-      appBar: _buildAppBar(),
-      body: Column(
+      backgroundColor: _gradTop,
+      body: Stack(
         children: [
-          Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == _messages.length && _isTyping) {
-                  return _buildTypingBubble();
-                }
-                final msg = _messages[index];
-                return _buildMessageRow(msg);
-              },
+          // Arka plan gradient
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [_gradTop, _gradMid],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
             ),
           ),
-          _buildInputArea(),
+          // Dekoratif partiküller
+          const _StarField(),
+          Column(
+            children: [
+              _buildHeader(),
+              Expanded(child: _buildMessageList()),
+              _buildInputArea(),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  // ── APP BAR ────────────────────────────────────────────────────────────────
+  // ── HEADER ─────────────────────────────────────────────────────────────────
 
-  PreferredSizeWidget _buildAppBar() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_crimson, _crimsonDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: AppBar(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          foregroundColor: Colors.white,
-          leading: IconButton(
-            icon: Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.15),
-                border: Border.all(color: Colors.white.withOpacity(0.25)),
-              ),
-              child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 15),
+  Widget _buildHeader() {
+    return ScaleTransition(
+      scale: _headerAnim,
+      child: SafeArea(
+        bottom: false,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.04),
+            border: Border(
+              bottom: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.07), width: 0.5),
             ),
-            onPressed: () => Navigator.pop(context),
           ),
-          title: Row(
+          child: Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.18),
-                  border: Border.all(color: Colors.white.withOpacity(0.3)),
-                ),
-                child: const Icon(Icons.auto_awesome,
-                    color: Colors.white, size: 18),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Bağış Asistanı",
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+              // Geri
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.07),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.1)),
                   ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: const BoxDecoration(
-                            color: Color(0xFF4ADE80), shape: BoxShape.circle),
+                  child: const Icon(Icons.arrow_back_ios_new_rounded,
+                      color: _textD, size: 16),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // AI avatar + animasyonlu pulse
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  AnimatedBuilder(
+                    animation: _dotCtrl,
+                    builder: (_, __) => Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: _accent.withValues(
+                              alpha: 0.3 + 0.3 * math.sin(_dotCtrl.value * 2 * math.pi)),
+                          width: 1.5,
+                        ),
                       ),
-                      const SizedBox(width: 5),
-                      Text(
-                        "Çevrimiçi",
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white.withOpacity(0.75)),
+                    ),
+                  ),
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [_accent, _accentGlow],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                    ],
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.auto_awesome_rounded,
+                        color: Colors.white, size: 18),
                   ),
                 ],
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('KanAI Asistan',
+                        style: TextStyle(
+                            color: _textW,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800)),
+                    Row(
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Color(0xFF4ADE80),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Text('Aktif · Yapay Zeka Destekli',
+                            style: TextStyle(color: _textD, fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
-          actions: [
-            IconButton(
-              icon: Icon(Icons.more_horiz_rounded,
-                  color: Colors.white.withOpacity(0.8)),
-              onPressed: () {},
-            ),
-          ],
         ),
       ),
     );
   }
 
-  // ── MESAJ SATIRI ───────────────────────────────────────────────────────────
+  // ── MESAJ LİSTESİ ──────────────────────────────────────────────────────────
 
-  Widget _buildMessageRow(Map<String, dynamic> msg) {
-    final bool isAi = msg["isAi"] as bool;
-    final bool showSuggestions = msg["showSuggestions"] == true;
+  Widget _buildMessageList() {
+    return ListView.builder(
+      controller: _scrollCtrl,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      itemCount: _messages.length + (_isTyping ? 1 : 0),
+      itemBuilder: (_, i) {
+        if (i == _messages.length) return _buildTypingIndicator();
+        return _buildMessageBubble(_messages[i]);
+      },
+    );
+  }
 
+  Widget _buildMessageBubble(_ChatMessage msg) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment:
-            isAi ? MainAxisAlignment.start : MainAxisAlignment.end,
+            msg.isAi ? MainAxisAlignment.start : MainAxisAlignment.end,
         children: [
-          if (isAi) ...[
-            _aiAvatarIcon(),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Column(
-              crossAxisAlignment:
-                  isAi ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-              children: [
-                _buildBubble(msg["text"] as String, isAi),
-                const SizedBox(height: 4),
-                Text(
-                  msg["time"] as String? ?? "",
-                  style: const TextStyle(
-                      fontSize: 10, color: _textSecondary),
-                ),
-                if (showSuggestions) ...[
-                  const SizedBox(height: 10),
-                  _buildSuggestionChips(),
+          if (msg.isAi) ...[
+            _AiAvatar(accent: _accent),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBubble(msg.text, true),
+                  const SizedBox(height: 4),
+                  Text(msg.time,
+                      style: const TextStyle(
+                          color: _textD, fontSize: 10)),
+                  if (msg.showSuggestions) ...[
+                    const SizedBox(height: 12),
+                    _buildSuggestions(),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (!isAi) ...[
-            const SizedBox(width: 8),
-            _userAvatarIcon(),
+          ] else ...[
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  _buildBubble(msg.text, false),
+                  const SizedBox(height: 4),
+                  Text(msg.time,
+                      style: const TextStyle(color: _textD, fontSize: 10)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _UserAvatar(accent: _accent),
           ],
         ],
       ),
-    );
-  }
-
-  Widget _aiAvatarIcon() {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _surface,
-        border: Border.all(color: _crimson.withOpacity(0.2)),
-      ),
-      child: const Icon(Icons.auto_awesome, color: _crimson, size: 14),
-    );
-  }
-
-  Widget _userAvatarIcon() {
-    return Container(
-      width: 28,
-      height: 28,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: _crimson.withOpacity(0.1),
-        border: Border.all(color: _crimson.withOpacity(0.2)),
-      ),
-      child: const Icon(Icons.person_outline_rounded,
-          color: _crimson, size: 16),
     );
   }
 
   Widget _buildBubble(String text, bool isAi) {
     return Container(
       constraints: BoxConstraints(
-        maxWidth: MediaQuery.of(context).size.width * 0.72,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          maxWidth: MediaQuery.of(context).size.width * 0.72),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isAi ? _surface : _crimson,
+        color: isAi ? _surfaceL : _accent,
         borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(18),
-          topRight: const Radius.circular(18),
-          bottomLeft: Radius.circular(isAi ? 4 : 18),
-          bottomRight: Radius.circular(isAi ? 18 : 4),
+          topLeft: const Radius.circular(20),
+          topRight: const Radius.circular(20),
+          bottomLeft: Radius.circular(isAi ? 4 : 20),
+          bottomRight: Radius.circular(isAi ? 20 : 4),
         ),
         border: isAi
-            ? Border.all(color: Colors.black.withOpacity(0.07), width: 0.5)
+            ? Border.all(
+                color: Colors.white.withValues(alpha: 0.07), width: 0.5)
             : null,
+        boxShadow: [
+          BoxShadow(
+            color: (isAi ? Colors.black : _accent).withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Text(
         text,
         style: TextStyle(
-          color: isAi ? _textPrimary : Colors.white,
+          color: isAi ? _textW : Colors.white,
           fontSize: 14,
-          height: 1.5,
+          height: 1.55,
         ),
       ),
     );
   }
 
-  // ── ÖNERI CHİP'LERİ ───────────────────────────────────────────────────────
-
-  Widget _buildSuggestionChips() {
+  Widget _buildSuggestions() {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: _suggestions
-          .map((s) => GestureDetector(
-                onTap: () => _sendMessage(s),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 13, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: _surface,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: _crimson.withOpacity(0.25), width: 0.8),
-                  ),
-                  child: Text(
-                    s,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: _crimson),
-                  ),
-                ),
-              ))
-          .toList(),
+      children: _suggestions.map((s) => GestureDetector(
+        onTap: () => _sendMessage(s),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: _accent.withValues(alpha: 0.35)),
+            boxShadow: [
+              BoxShadow(
+                color: _accent.withValues(alpha: 0.1),
+                blurRadius: 8,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.arrow_forward_ios_rounded,
+                  color: _accent, size: 10),
+              const SizedBox(width: 5),
+              Text(s,
+                  style: const TextStyle(
+                      color: _textW,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      )).toList(),
     );
   }
 
-  // ── YAZMA GÖSTERGESI ──────────────────────────────────────────────────────
-
-  Widget _buildTypingBubble() {
+  Widget _buildTypingIndicator() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          _aiAvatarIcon(),
-          const SizedBox(width: 8),
+          _AiAvatar(accent: _accent),
+          const SizedBox(width: 10),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              color: _surface,
+              color: _surfaceL,
               borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(18),
-                topRight: Radius.circular(18),
-                bottomRight: Radius.circular(18),
+                topLeft: Radius.circular(20),
+                topRight: Radius.circular(20),
+                bottomRight: Radius.circular(20),
                 bottomLeft: Radius.circular(4),
               ),
-              border:
-                  Border.all(color: Colors.black.withOpacity(0.07), width: 0.5),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.07), width: 0.5),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(
-                3,
-                (i) => AnimatedContainer(
-                  duration: Duration(milliseconds: 400 + i * 150),
-                  margin: EdgeInsets.only(left: i == 0 ? 0 : 4),
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: _crimson.withOpacity(0.4 + i * 0.25),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-              ),
+            child: AnimatedBuilder(
+              animation: _dotCtrl,
+              builder: (_, __) {
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(3, (i) {
+                    final delay = i * 0.33;
+                    final val = math.sin(
+                        (_dotCtrl.value - delay) * 2 * math.pi);
+                    final opacity = (val.clamp(-1.0, 1.0) + 1) / 2;
+                    return Container(
+                      margin: EdgeInsets.only(left: i == 0 ? 0 : 5),
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _accent.withValues(alpha: 0.3 + opacity * 0.7),
+                        shape: BoxShape.circle,
+                      ),
+                    );
+                  }),
+                );
+              },
             ),
           ),
         ],
@@ -415,45 +477,63 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
   }
 
-  // ── INPUT ALANI ───────────────────────────────────────────────────────────
+  // ── INPUT ──────────────────────────────────────────────────────────────────
 
   Widget _buildInputArea() {
     return Container(
       padding: EdgeInsets.only(
-        left: 14,
-        right: 14,
-        top: 10,
-        bottom: MediaQuery.of(context).padding.bottom + 10,
+        left: 14, right: 14, top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
-        color: _surface,
+        color: _inputBg,
         border: Border(
-            top: BorderSide(color: Colors.black.withOpacity(0.08), width: 0.5)),
+            top: BorderSide(
+                color: Colors.white.withValues(alpha: 0.07), width: 0.5)),
       ),
       child: Row(
         children: [
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: _bg,
-                borderRadius: BorderRadius.circular(24),
+                color: _surface,
+                borderRadius: BorderRadius.circular(28),
                 border: Border.all(
-                    color: Colors.black.withOpacity(0.08), width: 0.5),
+                    color: Colors.white.withValues(alpha: 0.1)),
               ),
-              child: TextField(
-                controller: _controller,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => _sendMessage(),
-                style: const TextStyle(fontSize: 14, color: _textPrimary),
-                decoration: const InputDecoration(
-                  hintText: "Asistana bir soru sor...",
-                  hintStyle: TextStyle(
-                      color: _textSecondary, fontSize: 14),
-                  border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  suffixIcon: Icon(Icons.mic_none_rounded,
-                      color: _textSecondary, size: 20),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  inputDecorationTheme: const InputDecorationTheme(
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                  ),
+                ),
+                child: TextField(
+                  controller: _controller,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => _sendMessage(),
+                  style: const TextStyle(
+                    color: _textW,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  cursorColor: _accent,
+                  cursorWidth: 2,
+                  decoration: InputDecoration(
+                    hintText: 'Bir soru sor...',
+                    hintStyle: TextStyle(
+                        color: _textD.withValues(alpha: 0.6), fontSize: 14),
+                    filled: true,
+                    fillColor: Colors.transparent,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 14),
+                  ),
                 ),
               ),
             ),
@@ -461,16 +541,23 @@ class _AiChatScreenState extends State<AiChatScreen> {
           const SizedBox(width: 10),
           GestureDetector(
             onTap: _sendMessage,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_crimson, _crimsonDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                    colors: [_accent, _accentGlow],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight),
                 shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: _accent.withValues(alpha: 0.4),
+                    blurRadius: 14,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
               child: const Icon(Icons.send_rounded,
                   color: Colors.white, size: 20),
@@ -480,11 +567,94 @@ class _AiChatScreenState extends State<AiChatScreen> {
       ),
     );
   }
+}
+
+// ── Alt widget'lar ────────────────────────────────────────────────────────────
+
+class _ChatMessage {
+  final String text;
+  final bool isAi;
+  final String time;
+  final bool showSuggestions;
+  const _ChatMessage({
+    required this.text,
+    required this.isAi,
+    required this.time,
+    this.showSuggestions = false,
+  });
+}
+
+class _AiAvatar extends StatelessWidget {
+  final Color accent;
+  const _AiAvatar({required this.accent});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [accent, accent.withValues(alpha: 0.7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight),
+        shape: BoxShape.circle,
+      ),
+      child: const Icon(Icons.auto_awesome_rounded,
+          color: Colors.white, size: 16),
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  final Color accent;
+  const _UserAvatar({required this.accent});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 32,
+      height: 32,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.15),
+        shape: BoxShape.circle,
+        border: Border.all(color: accent.withValues(alpha: 0.3)),
+      ),
+      child: Icon(Icons.person_rounded, color: accent, size: 16),
+    );
+  }
+}
+
+// ── Star field dekorasyon ──────────────────────────────────────────────────────
+
+class _StarField extends StatelessWidget {
+  const _StarField();
 
   @override
-  void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final rng = math.Random(42);
+    return CustomPaint(
+      size: Size(size.width, size.height),
+      painter: _StarPainter(rng),
+    );
   }
+}
+
+class _StarPainter extends CustomPainter {
+  final math.Random rng;
+  _StarPainter(this.rng);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = Colors.white.withValues(alpha: 0.05);
+    final rng2 = math.Random(42);
+    for (int i = 0; i < 60; i++) {
+      final x = rng2.nextDouble() * size.width;
+      final y = rng2.nextDouble() * size.height;
+      final r = rng2.nextDouble() * 1.5 + 0.5;
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_StarPainter _) => false;
 }

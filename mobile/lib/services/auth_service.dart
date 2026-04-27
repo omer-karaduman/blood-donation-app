@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../models/user.dart';
 import '../models/donor.dart'; // 🚀 KRİTİK: Donor modelini içeri aktarıyoruz
-import '../constants/api_constants.dart';
+import '../core/constants/api_constants.dart';
 
 class AuthService {
   /// Kullanıcı girişi yapar ve rolüne göre (Donor veya User) nesne döndürür.

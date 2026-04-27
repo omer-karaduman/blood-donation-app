@@ -4,431 +4,632 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:async';
-import '../../../constants/api_constants.dart';
+import 'dart:math' as math;
+import '../../../../../core/constants/api_constants.dart';
 import '../../../models/donor.dart';
 
 class DonorRequestsTab extends StatefulWidget {
   final Donor currentUser;
-
-  const DonorRequestsTab({
-    super.key,
-    required this.currentUser,
-  });
+  const DonorRequestsTab({super.key, required this.currentUser});
 
   @override
   State<DonorRequestsTab> createState() => _DonorRequestsTabState();
 }
 
-class _DonorRequestsTabState extends State<DonorRequestsTab> {
+class _DonorRequestsTabState extends State<DonorRequestsTab>
+    with TickerProviderStateMixin {
+  // ── State ──────────────────────────────────────────────────────────────────
+
   bool _isLoading = true;
-  bool _isBackgroundFetching = false;
+  bool _isCooldown = false;
   List<dynamic> _requests = [];
-  bool _hasActiveAcceptedRequest = false;
+  Duration _remaining = Duration.zero;
 
   Timer? _cooldownTimer;
-  Timer? _autoRefreshTimer;
-  Duration _timeLeft = Duration.zero;
-  bool _isCooldown = false;
+  Timer? _refreshTimer;
 
-  // ── Tema renkleri (home_tab ile birebir) ───────────────────────────────────
-  static const _crimson = Color(0xFFC0182A);
-  static const _crimsonDark = Color(0xFF8B0000);
-  static const _bg = Color(0xFFF5F5F7);
-  static const _surface = Colors.white;
-  static const _textPrimary = Color(0xFF1C1C1E);
+  // ── Animasyonlar ───────────────────────────────────────────────────────────
+
+  late AnimationController _pulseCtrl;
+  late AnimationController _fadeCtrl;
+  late Animation<double> _pulseAnim;
+  late Animation<double> _fadeAnim;
+
+  // ── Tema ───────────────────────────────────────────────────────────────────
+
+  // Aktif (bağış yapılabilir)
+  static const _activePrimary  = Color(0xFFC0182A);
+  static const _activeGrad1    = Color(0xFFC0182A);
+  static const _activeGrad2    = Color(0xFF8B0019);
+  static const _activeBg       = Color(0xFFF5F5F7);
+  static const _activeSurface  = Colors.white;
+
+  // Cooldown (dinlenme)
+  static const _coolBg         = Color(0xFFEEF0FB);
+  static const _coolSurface    = Color(0xFFF8F9FF);
+  static const _coolAccent     = Color(0xFF5C6BC0);
+  static const _coolGrad1      = Color(0xFF1A237E);
+  static const _coolGrad2      = Color(0xFF283593);
+
+  Color get _bg      => _isCooldown ? _coolBg      : _activeBg;
+  Color get _surface => _isCooldown ? _coolSurface : _activeSurface;
+  Color get _primary => _isCooldown ? _coolAccent  : _activePrimary;
+  Color get _hGrad1  => _isCooldown ? _coolGrad1   : _activeGrad1;
+  Color get _hGrad2  => _isCooldown ? _coolGrad2   : _activeGrad2;
+
+  static const _textPrimary   = Color(0xFF1C1C1E);
   static const _textSecondary = Color(0xFF8E8E93);
 
   @override
   void initState() {
     super.initState();
-    _checkCooldown();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && !_isCooldown && !_isLoading && !_isBackgroundFetching) {
-        _fetchRequests(isSilent: true);
-      }
+    _pulseCtrl = AnimationController(
+        vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
+
+    _pulseAnim =
+        Tween<double>(begin: 1.0, end: 1.12).animate(
+            CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+
+    _checkAndLoad();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (mounted && !_isCooldown && !_isLoading) _fetchRequests(silent: true);
     });
   }
 
   @override
   void dispose() {
+    _pulseCtrl.dispose();
+    _fadeCtrl.dispose();
     _cooldownTimer?.cancel();
-    _autoRefreshTimer?.cancel();
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
-  // ── MANTIK ─────────────────────────────────────────────────────────────────
+  // ── API ────────────────────────────────────────────────────────────────────
 
-  Future<void> _checkCooldown() async {
+  Future<void> _checkAndLoad() async {
     try {
-      final url = ApiConstants.donorProfileEndpoint(widget.currentUser.userId);
-      final response = await http.get(Uri.parse(url));
+      final res = await http.get(
+          Uri.parse(ApiConstants.donorProfileEndpoint(widget.currentUser.userId)));
+      if (res.statusCode == 200) {
+        final data = json.decode(utf8.decode(res.bodyBytes));
+        final dateStr = data['son_bagis_tarihi']?.toString();
 
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        final String? sonBagisTarihiStr = data['son_bagis_tarihi'];
+        if (dateStr != null && dateStr.isNotEmpty) {
+          final safe = dateStr.endsWith('Z') ? dateStr : '${dateStr}Z';
+          final last = DateTime.parse(safe).toLocal();
+          final waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
+          final nextDate = last.add(Duration(days: waitDays));
 
-        if (sonBagisTarihiStr != null && sonBagisTarihiStr.isNotEmpty) {
-          String safeDateStr = sonBagisTarihiStr;
-          if (!safeDateStr.endsWith('Z')) safeDateStr += 'Z';
-
-          DateTime sonBagis = DateTime.parse(safeDateStr).toLocal();
-          int waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
-          final nextDate = sonBagis.add(Duration(days: waitDays));
-          final now = DateTime.now();
-
-          if (now.isBefore(nextDate)) {
-            if (mounted) {
-              setState(() {
-                _isCooldown = true;
-                _isLoading = false;
-              });
-              _startCooldownTimer(nextDate);
-              return;
-            }
+          if (nextDate.isAfter(DateTime.now())) {
+            if (!mounted) return;
+            setState(() {
+              _isCooldown = true;
+              _remaining = nextDate.difference(DateTime.now());
+              _isLoading = false;
+            });
+            _startTimer(nextDate);
+            _fadeCtrl.forward(from: 0);
+            return;
           }
         }
       }
     } catch (e) {
-      debugPrint("❌ Sayaç için güncel profil çekilemedi: $e");
+      debugPrint('[DonorRequestsTab] checkAndLoad: $e');
     }
-
-    if (mounted) {
-      setState(() => _isCooldown = false);
-      _fetchRequests();
-    }
+    _fetchRequests();
   }
 
-  void _startCooldownTimer(DateTime target) {
-    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      final diff = target.difference(DateTime.now());
-      if (diff.isNegative) {
-        if (mounted) {
-          setState(() => _isCooldown = false);
-          _cooldownTimer?.cancel();
-          _fetchRequests();
-        }
+  void _startTimer(DateTime target) {
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final left = target.difference(DateTime.now());
+      if (left <= Duration.zero) {
+        _cooldownTimer?.cancel();
+        setState(() { _isCooldown = false; });
+        _fetchRequests();
       } else {
-        if (mounted) setState(() => _timeLeft = diff);
+        setState(() => _remaining = left);
       }
     });
   }
 
-  Future<void> _fetchRequests({bool isSilent = false}) async {
-    if (!isSilent && mounted) {
-      setState(() => _isLoading = true);
-    } else {
-      _isBackgroundFetching = true;
-    }
-
+  Future<void> _fetchRequests({bool silent = false}) async {
+    if (!mounted) return;
+    if (!silent) setState(() => _isLoading = true);
     try {
-      final url = ApiConstants.donorFeedEndpoint(widget.currentUser.userId);
-      final response = await http.get(Uri.parse(url));
-
-      if (response.statusCode == 200) {
-        final data = json.decode(utf8.decode(response.bodyBytes));
-        if (mounted) {
-          setState(() {
-            final List<dynamic> rawList =
-                data is List ? data : (data['items'] ?? []);
-
-            _hasActiveAcceptedRequest = rawList.any((req) {
-              final reaksiyon = req['reaksiyon'] ?? req['kullanici_reaksiyonu'];
-              return reaksiyon == 'Kabul';
-            });
-
-            _requests = rawList.where((req) {
-              final reaksiyon = req['reaksiyon'] ?? req['kullanici_reaksiyonu'];
-              return reaksiyon == 'Bekliyor' || reaksiyon == null;
-            }).toList();
-
-            _isLoading = false;
-            _isBackgroundFetching = false;
-          });
-        }
-      } else {
-        if (mounted) {
-          setState(() {
-            _isLoading = false;
-            _isBackgroundFetching = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
+      final res = await http.get(
+          Uri.parse(ApiConstants.donorFeedEndpoint(widget.currentUser.userId)));
+      if (res.statusCode == 200 && mounted) {
         setState(() {
+          _requests = json.decode(utf8.decode(res.bodyBytes));
           _isLoading = false;
-          _isBackgroundFetching = false;
         });
+        _fadeCtrl.forward(from: 0);
       }
+    } catch (e) {
+      debugPrint('[DonorRequestsTab] fetchRequests: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<void> _respondToRequest(String logId, String reaction) async {
-    try {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-            child: CircularProgressIndicator(color: _crimson)),
-      );
-
-      final url =
-          "${ApiConstants.donorsEndpoint}/${widget.currentUser.userId}/respond/$logId?reaksiyon=$reaction";
-      final response = await http.post(Uri.parse(url));
-
-      if (mounted) Navigator.pop(context);
-
-      if (response.statusCode == 200) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(reaction == 'Kabul'
-                  ? "Harika! Hastaneye bekleniyorsunuz."
-                  : "Talep listenizden gizlendi."),
-              behavior: SnackBarBehavior.floating,
-              backgroundColor: reaction == 'Kabul'
-                  ? Colors.green.shade600
-                  : Colors.blueGrey.shade800,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          );
-          _fetchRequests();
+  Future<void> _respond(String logId, String reaksiyon, {bool isAccept = false}) async {
+    // Anında lokal state güncelle (optimistic UI)
+    if (mounted) {
+      setState(() {
+        if (!isAccept) {
+          _requests.removeWhere((f) => f['log_id']?.toString() == logId);
+        } else {
+          final idx = _requests.indexWhere((f) => f['log_id']?.toString() == logId);
+          if (idx != -1) {
+            final updated = Map<String, dynamic>.from(_requests[idx]);
+            updated['reaksiyon'] = 'Kabul';
+            _requests[idx] = updated;
+          }
         }
+      });
+    }
+
+    try {
+      final res = await http.post(Uri.parse(
+        '${ApiConstants.donorsEndpoint}/${widget.currentUser.userId}/respond/$logId?reaksiyon=$reaksiyon',
+      ));
+      debugPrint('[respond] ${res.statusCode}: ${res.body}');
+
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isAccept
+              ? 'Bağış onaylandı! Teşekkürler 🩸'
+              : 'Talep listenden çıkarıldı.'),
+          backgroundColor:
+              isAccept ? Colors.green.shade700 : Colors.grey.shade600,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ));
+        await _fetchRequests(silent: true);
       } else {
+        // Hata varsa geri al
+        await _fetchRequests(silent: true);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content:
-                  const Text("İşlem gerçekleştirilemedi. Lütfen tekrar deneyin."),
-              backgroundColor: Colors.red.shade700,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Hata: ${res.body}'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ));
         }
       }
     } catch (e) {
-      if (mounted) Navigator.pop(context);
+      debugPrint('[DonorRequestsTab] respond: $e');
+      await _fetchRequests(silent: true);
     }
   }
 
-  Future<void> _confirmAccept(String logId, String hastaneAdi) async {
-    if (_hasActiveAcceptedRequest) {
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-            child: CircularProgressIndicator(color: _crimson)),
-      );
-
-      await _fetchRequests(isSilent: true);
-
-      if (mounted) Navigator.pop(context);
-
-      if (_hasActiveAcceptedRequest) {
-        _showAlreadyHasRequestWarning();
-        return;
-      }
-    }
-
-    _showConfirmSheet(logId, hastaneAdi);
-  }
-
-  void _showAlreadyHasRequestWarning() {
-    showDialog(
+  Future<void> _confirmSkip(String logId) async {
+    final ok = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: _surface,
-        surfaceTintColor: _surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        contentPadding: const EdgeInsets.all(24),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.orange.shade50,
-                shape: BoxShape.circle,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Bu taleple ilgilenmiyorsun?',
+            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+        content: const Text(
+            'Bu talebi geçersen sana bir daha gösterilmeyecek.',
+            style: TextStyle(fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.grey.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('İlgilenmiyorum'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await _respond(logId, 'Gormezden_Geldi', isAccept: false);
+  }
+
+  Future<void> _confirmAccept(String logId, Color urgentColor) async {
+    // Zaten kabul edilmis baska talep var mi?
+    final alreadyAccepted = _requests.any(
+        (f) => (f['reaksiyon'] ?? '').toString().toLowerCase() == 'kabul' &&
+            f['log_id']?.toString() != logId);
+
+    if (alreadyAccepted) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: const Icon(Icons.info_rounded, color: Color(0xFF1565C0), size: 36),
+          title: const Text('Zaten onayladığın bir bağış var!',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+              textAlign: TextAlign.center),
+          content: const Text(
+              'Halihazırda bir kan bağışını onaylamışsın. '
+              'İki farklı talep için aynı anda bağış yapamazsın. '
+              'Önceki onayını iptal edip bu talebi onaylamak ister misin?',
+              style: TextStyle(fontSize: 13, height: 1.5),
+              textAlign: TextAlign.center),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: urgentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: Icon(Icons.warning_amber_rounded,
-                  color: Colors.orange.shade800, size: 40),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "Aktif Göreviniz Var",
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _textPrimary),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              "Şu anda kabul ettiğiniz bir kan talebi bulunuyor. "
-              "Yeni talebi kabul etmek için önce mevcut görevinizi tamamlamalı veya iptal etmelisiniz.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: _textSecondary, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _crimson,
-                  minimumSize: const Size(0, 48),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                child: const Text("Anladım",
-                    style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold)),
-              ),
+              child: const Text('Öncekini İptal Et, Bunu Onayla'),
             ),
           ],
         ),
-      ),
-    );
+      );
+      if (ok != true) return;
+      // Onceki kabul edilen talepleri iptal et
+      for (final f in List.from(_requests.where(
+          (f) => (f['reaksiyon'] ?? '').toString().toLowerCase() == 'kabul' &&
+              f['log_id']?.toString() != logId))) {
+        final oldId = f['log_id']?.toString() ?? '';
+        if (oldId.isNotEmpty) {
+          await _respond(oldId, 'Gormezden_Geldi', isAccept: false);
+        }
+      }
+    } else {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Bağışa gitmeyi onaylıyor musun?',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
+          content: const Text(
+              'Kuruma giderek bu kan talebini karşılayacağını belirtiyorsun. Sağ olasın!',
+              style: TextStyle(fontSize: 14)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Vazgeç'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: urgentColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Evet, Gidiyorum'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+    await _respond(logId, 'Kabul', isAccept: true);
   }
 
   // ── BUILD ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    if (_isCooldown) return _buildTimerUI(key: const ValueKey('timer_view'));
+    if (_isLoading) return _buildSkeleton();
 
     return Scaffold(
-      key: const ValueKey('requests_view'),
       backgroundColor: _bg,
-      body: RefreshIndicator(
-        onRefresh: () => _fetchRequests(),
-        color: _crimson,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            _buildHeroHeader(),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                child: _sectionLabel("Size Uygun Talepler"),
-              ),
+      body: NestedScrollView(
+        headerSliverBuilder: (_, __) => [_buildAppBar()],
+        body: FadeTransition(
+          opacity: _fadeAnim,
+          child: _isCooldown ? _buildCooldownBody() : _buildRequestsBody(),
+        ),
+      ),
+    );
+  }
+
+  // ── APP BAR ────────────────────────────────────────────────────────────────
+
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      expandedHeight: 180,
+      pinned: true,
+      automaticallyImplyLeading: false,
+      backgroundColor: _hGrad1,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [_hGrad1, _hGrad2],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-            if (_isLoading && _requests.isEmpty)
-              const SliverFillRemaining(
-                child: Center(
-                    child: CircularProgressIndicator(color: _crimson)),
-              )
-            else if (_requests.isEmpty)
-              SliverFillRemaining(child: _buildEmptyState())
-            else
-              SliverPadding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) =>
-                        _buildRequestCard(_requests[index]),
-                    childCount: _requests.length,
+          ),
+          child: Stack(
+            children: [
+              // Dekor daireler
+              Positioned(
+                top: -30, right: -30,
+                child: _circle(160, opacity: 0.07)),
+              Positioned(
+                bottom: -20, left: 20,
+                child: _circle(100, opacity: 0.05)),
+              SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          _isCooldown
+                              ? Icons.timer_rounded
+                              : Icons.bloodtype_rounded,
+                          color: Colors.white, size: 22,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        _isCooldown ? 'Dinlenme Süreci' : 'Kan Talepleri',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isCooldown
+                            ? 'Vücudun yenileniyor. Biraz bekle!'
+                            : '${_requests.length} talep seni bekliyor',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 13),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // ── HERO HEADER ────────────────────────────────────────────────────────────
+  // ── COOLDOWN (DİNLENME) EKRANI ─────────────────────────────────────────────
 
-  Widget _buildHeroHeader() {
-    return SliverToBoxAdapter(
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [_crimson, _crimsonDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+  Widget _buildCooldownBody() {
+    final days    = _remaining.inDays;
+    final hours   = _remaining.inHours % 24;
+    final minutes = _remaining.inMinutes % 60;
+    final seconds = _remaining.inSeconds % 60;
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 40),
+      child: Column(
+        children: [
+          // Ana sayaç kartı
+          AnimatedBuilder(
+            animation: _pulseAnim,
+            builder: (_, child) => Transform.scale(
+              scale: _pulseAnim.value,
+              child: child,
+            ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(32),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_coolGrad1, _coolGrad2],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: _coolAccent.withValues(alpha: 0.3),
+                    blurRadius: 24,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  const Icon(Icons.self_improvement_rounded,
+                      color: Colors.white70, size: 48),
+                  const SizedBox(height: 16),
+                  const Text('Sonraki Bağışa Kalan Süre',
+                      style: TextStyle(
+                          color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 16),
+                  // Countdown tiles
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _countdownTile('$days', 'Gün'),
+                      _countdownSep(),
+                      _countdownTile('${hours.toString().padLeft(2, '0')}', 'Saat'),
+                      _countdownSep(),
+                      _countdownTile('${minutes.toString().padLeft(2, '0')}', 'Dak'),
+                      _countdownSep(),
+                      _countdownTile('${seconds.toString().padLeft(2, '0')}', 'Sn'),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // İpuçları
+          _buildTipsList(),
+          const SizedBox(height: 24),
+          // Neden beklemelisin
+          _buildWhyWaitCard(),
+        ],
+      ),
+    );
+  }
+
+  Widget _countdownTile(String value, String label) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+          ),
+          child: Text(
+            value,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -1,
+            ),
           ),
         ),
-        child: Stack(
-          children: [
-            Positioned(
-              top: -40,
-              right: -40,
-              child: _decorCircle(180, opacity: 0.06),
-            ),
-            Positioned(
-              bottom: -20,
-              left: 50,
-              child: _decorCircle(120, opacity: 0.04),
-            ),
-            SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 6),
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 10,
+                fontWeight: FontWeight.w500)),
+      ],
+    );
+  }
+
+  Widget _countdownSep() => Padding(
+    padding: const EdgeInsets.fromLTRB(6, 0, 6, 20),
+    child: Text(':',
+        style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.5),
+            fontSize: 28,
+            fontWeight: FontWeight.w300)),
+  );
+
+  Widget _buildTipsList() {
+    final tips = [
+      (Icons.water_drop_outlined, 'Bol su içmeye devam edin'),
+      (Icons.restaurant_outlined, 'Demir açısından zengin beslening'),
+      (Icons.bedtime_outlined, 'Düzenli uyku önemli'),
+      (Icons.fitness_center_outlined, 'Hafif egzersiz yapabilirsiniz'),
+    ];
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _coolAccent.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: tips.asMap().entries.map((e) {
+          final isLast = e.key == tips.length - 1;
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+                child: Row(
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Kan Talepleri",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              "Size uygun talepler aşağıda",
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                        _buildCountBadge(),
-                      ],
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _coolAccent.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(e.value.$1,
+                          color: _coolAccent, size: 18),
                     ),
+                    const SizedBox(width: 14),
+                    Text(e.value.$2,
+                        style: const TextStyle(
+                            color: _textPrimary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600)),
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
+              if (!isLast)
+                Divider(
+                    height: 1,
+                    color:
+                        _coolAccent.withValues(alpha: 0.08)),
+            ],
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildCountBadge() {
+  Widget _buildWhyWaitCard() {
+    final waitDays = widget.currentUser.cinsiyet == 'K' ? 120 : 90;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.3)),
+        gradient: LinearGradient(
+          colors: [
+            _coolAccent.withValues(alpha: 0.08),
+            _coolGrad1.withValues(alpha: 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _coolAccent.withValues(alpha: 0.15)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.favorite, color: Colors.white, size: 14),
-          const SizedBox(width: 6),
-          Text(
-            "${_requests.length} Talep",
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _coolAccent.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(Icons.info_outline_rounded,
+                color: _coolAccent, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Neden Bekliyorum?',
+                    style: TextStyle(
+                        color: _textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(height: 4),
+                Text(
+                  'Vücudunuzun kan ve hücre değerlerini yenilemesi için $waitDays günlük bekleme süreci uygulanmaktadır.',
+                  style: const TextStyle(
+                      color: _textSecondary,
+                      fontSize: 12,
+                      height: 1.5),
+                ),
+              ],
             ),
           ),
         ],
@@ -436,632 +637,424 @@ class _DonorRequestsTabState extends State<DonorRequestsTab> {
     );
   }
 
-  Widget _decorCircle(double size, {required double opacity}) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white.withOpacity(opacity),
+  // ── AKTIF TALEPLER LİSTESİ ─────────────────────────────────────────────────
+
+  Widget _buildRequestsBody() {
+    if (_requests.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    // Acil önce, sonra normal
+    final sorted = [..._requests]..sort((a, b) {
+        final aU = (a['aciliyet_durumu'] ?? '').toString();
+        final bU = (b['aciliyet_durumu'] ?? '').toString();
+        final aScore = (aU == 'Afet') ? 2 : (aU == 'Acil') ? 1 : 0;
+        final bScore = (bU == 'Afet') ? 2 : (bU == 'Acil') ? 1 : 0;
+        return bScore.compareTo(aScore);
+      });
+
+    return RefreshIndicator(
+      onRefresh: () => _fetchRequests(),
+      color: _activePrimary,
+      child: ListView.builder(
+        physics: const BouncingScrollPhysics(
+            parent: AlwaysScrollableScrollPhysics()),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 40),
+        itemCount: sorted.length,
+        itemBuilder: (_, i) => _buildRequestCard(sorted[i]),
       ),
     );
   }
 
-  // ── TALEP KARTI ────────────────────────────────────────────────────────────
-
   Widget _buildRequestCard(Map<String, dynamic> item) {
-    final String logId = item['log_id']?.toString() ?? "";
-    final String kurumAdi =
-        item['kurum_adi']?.toString() ?? "Bilinmeyen Hastane";
-    final String aciliyet =
-        item['aciliyet_durumu']?.toString() ?? "NORMAL";
-    final bool isUrgent =
-        aciliyet.toUpperCase() == "ACIL" || aciliyet.toUpperCase() == "AFET";
-    final String kanGrubu =
-        item['istenen_kan_grubu']?.toString() ?? "";
+    // API'den doğru field adlarını kullan
+    final aciliyetStr = (item['aciliyet_durumu'] ?? '').toString();
+    final isAfet   = aciliyetStr == 'Afet';
+    final isAcil   = aciliyetStr == 'Acil' || isAfet;
+    final blood    = item['istenen_kan_grubu']?.toString() ?? '?';
+    final kurum    = item['kurum_adi'] ?? 'Bilinmiyor';
+    final ilce     = item['ilce']?.toString() ?? '';
+    final unite    = item['unite_sayisi']?.toString() ?? '1';
+    final logId    = item['log_id']?.toString() ?? '';
+    final reaksiyon = (item['reaksiyon'] ?? '').toString().toLowerCase();
+    final isAccepted = reaksiyon == 'kabul';
 
-    String remainingText = "Hesaplanıyor...";
-    bool isExpired = false;
-    try {
-      if (item['olusturma_tarihi'] != null) {
-        String dateStr = item['olusturma_tarihi'].toString();
-        if (!dateStr.endsWith('Z')) dateStr += 'Z';
-        DateTime createdAt = DateTime.parse(dateStr).toLocal();
-        int durationHours = item['gecerlilik_suresi_saat'] ?? 24;
-        DateTime expiresAt = createdAt.add(Duration(hours: durationHours));
-        Duration remaining = expiresAt.difference(DateTime.now());
-
-        if (!remaining.isNegative) {
-          remainingText =
-              "${remaining.inHours}s ${remaining.inMinutes.remainder(60)}dk kaldı";
-        } else {
-          remainingText = "Süresi Doldu";
-          isExpired = true;
-        }
-      }
-    } catch (e) {
-      remainingText = "Süre Bilgisi Yok";
-    }
+    // Renk paleti
+    final Color cardColor = isAfet
+        ? const Color(0xFF7B0019)
+        : isAcil
+            ? const Color(0xFFC0182A)
+            : const Color(0xFFE53935);
+    final Color cardAccent = isAfet
+        ? const Color(0xFFB71C1C)
+        : isAcil
+            ? const Color(0xFFE53935)
+            : const Color(0xFFEF5350);
+    final String aciliyetLabel = isAfet ? 'AFET' : isAcil ? 'ACİL' : 'NORMAL';
+    final Color badgeColor = isAfet
+        ? const Color(0xFF7B0019)
+        : isAcil
+            ? const Color(0xFFB71C1C)
+            : const Color(0xFF1565C0);
+    final Color badgeBg = isAfet
+        ? const Color(0xFFFFCDD2)
+        : isAcil
+            ? const Color(0xFFFFEBEE)
+            : const Color(0xFFE3F2FD);
+    final IconData acilIcon = isAfet
+        ? Icons.crisis_alert_rounded
+        : isAcil
+            ? Icons.warning_amber_rounded
+            : Icons.water_drop_rounded;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: _surface,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-            color: Colors.black.withOpacity(0.07), width: 0.5),
-      ),
-      clipBehavior: Clip.hardEdge,
-      child: Column(
-        children: [
-          // ── Üst şerit: aciliyet + kan grubu ──────────────────────────────
-          Container(
-            color: isUrgent
-                ? const Color(0xFFFFF5F5)
-                : Colors.orange.shade50,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: isUrgent ? _crimson : Colors.orange.shade600,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      aciliyet.toUpperCase(),
-                      style: TextStyle(
-                        color: isUrgent ? _crimson : Colors.orange.shade800,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ],
-                ),
-                if (kanGrubu.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF0F0),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                          color: const Color(0xFFFCA5A5), width: 0.8),
-                    ),
-                    child: Text(
-                      kanGrubu,
-                      style: const TextStyle(
-                        color: _crimson,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const Divider(
-              height: 0.5,
-              color: Color(0xFFF0F0F0)),
-
-          // ── Orta içerik ──────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  kurumAdi,
-                  style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.bold,
-                      color: _textPrimary),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Icon(Icons.location_on_outlined,
-                        size: 13, color: _textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      item['ilce'] ?? "Bölge Bilinmiyor",
-                      style: const TextStyle(
-                          fontSize: 12, color: _textSecondary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                const Divider(height: 0.5, color: Color(0xFFF0F0F0)),
-                const SizedBox(height: 12),
-
-                // Kalan süre satırı
-                Row(
-                  children: [
-                    Icon(
-                      Icons.timer_outlined,
-                      size: 14,
-                      color: isExpired
-                          ? Colors.red.shade400
-                          : _textSecondary,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      remainingText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isExpired
-                            ? Colors.red.shade400
-                            : _textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // ── Butonlar ─────────────────────────────────────────────
-                Row(
-                  children: [
-                    Expanded(
-                      child: Material(
-                        color: const Color(0xFFF5F5F7),
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          onTap: () => _showIgnoreSheet(logId),
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
-                            alignment: Alignment.center,
-                            child: Text(
-                              "İlgilenmiyorum",
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                color: Colors.grey.shade600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Material(
-                        color: _crimson,
-                        borderRadius: BorderRadius.circular(14),
-                        child: InkWell(
-                          onTap: () =>
-                              _confirmAccept(logId, kurumAdi),
-                          borderRadius: BorderRadius.circular(14),
-                          child: Container(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 13),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              "Kabul Et",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+        border: Border.all(color: cardColor.withValues(alpha: 0.15), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: cardColor.withValues(alpha: 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-    );
-  }
-
-  // ── BOTTOM SHEET: GIZLE ────────────────────────────────────────────────────
-
-  void _showIgnoreSheet(String logId) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: BoxDecoration(
-                color: Colors.blueGrey.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.visibility_off_rounded,
-                  color: Colors.blueGrey.shade400, size: 36),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "Talebi Gizle",
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _textPrimary),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "Bu talebi listenizden kaldırmak istediğinize emin misiniz? Gizlenen talepler tekrar gösterilmez.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: _textSecondary, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade200),
-                      minimumSize: const Size(0, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text("Vazgeç",
-                        style: TextStyle(
-                            color: _textPrimary,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _respondToRequest(logId, "Red");
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueGrey.shade800,
-                      minimumSize: const Size(0, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text("Gizle",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── BOTTOM SHEET: KABUL ────────────────────────────────────────────────────
-
-  void _showConfirmSheet(String logId, String hastane) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _surface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            const SizedBox(height: 28),
-            Container(
-              padding: const EdgeInsets.all(18),
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFF0F0),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.favorite_rounded,
-                  color: _crimson, size: 36),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              "Harika Bir Adım!",
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: _textPrimary),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              "$hastane kurumuna bağış yapmayı kabul ederek bir can kurtaracaksınız. Onaylıyor musunuz?",
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(color: _textSecondary, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade200),
-                      minimumSize: const Size(0, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text("Vazgeç",
-                        style: TextStyle(
-                            color: _textPrimary,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _respondToRequest(logId, "Kabul");
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _crimson,
-                      minimumSize: const Size(0, 50),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                    ),
-                    child: const Text("Onaylıyorum",
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold)),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ── BOŞ DURUM ─────────────────────────────────────────────────────────────
-
-  Widget _buildEmptyState() {
-    return Center(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: const EdgeInsets.all(28),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.verified_user_rounded,
-                size: 56, color: Colors.green.shade400),
-          ),
-          const SizedBox(height: 24),
-          const Text(
-            "Şu An Her Şey Yolunda",
-            style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: _textPrimary),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            "Size uygun aktif bir kan talebi bulunmuyor.",
-            style: TextStyle(color: _textSecondary, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── SAYAÇ EKRANI ───────────────────────────────────────────────────────────
-
-  Widget _buildTimerUI({Key? key}) {
-    return Scaffold(
-      key: key,
-      backgroundColor: _bg,
-      body: CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // Gradient başlık
-          SliverToBoxAdapter(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_crimson, _crimsonDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+              gradient: LinearGradient(
+                colors: [cardColor.withValues(alpha: 0.05), cardAccent.withValues(alpha: 0.02)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              child: Stack(
-                children: [
-                  Positioned(
-                    top: -40,
-                    right: -40,
-                    child: _decorCircle(180, opacity: 0.06),
+              borderRadius: const BorderRadius.only(
+                topLeft: Radius.circular(21),
+                topRight: Radius.circular(21),
+              ),
+            ),
+            child: Row(
+              children: [
+                // Kan grubu kutusu
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [cardColor, cardAccent],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: cardColor.withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  SafeArea(
-                    bottom: false,
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.water_drop_rounded, color: Colors.white54, size: 13),
+                      Text(
+                        blood,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          const Text(
-                            "Kan Talepleri",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: badgeBg,
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(acilIcon, color: badgeColor, size: 11),
+                                const SizedBox(width: 3),
+                                Text(
+                                  aciliyetLabel,
+                                  style: TextStyle(
+                                    color: badgeColor,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            "Dinlenme süreciniz devam ediyor",
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontSize: 13,
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: cardColor.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            child: Text(
+                              '$unite Ünite',
+                              style: TextStyle(
+                                color: cardColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
+                          if (isAccepted) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE8F5E9),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle_rounded,
+                                      color: Color(0xFF2E7D32), size: 11),
+                                  SizedBox(width: 3),
+                                  Text('ONAYLI',
+                                      style: TextStyle(
+                                          color: Color(0xFF2E7D32),
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900)),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
-                    ),
+                      const SizedBox(height: 7),
+                      Text(
+                        kurum,
+                        style: const TextStyle(
+                            color: Color(0xFF1C1C1E),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (ilce.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.location_on_rounded,
+                                color: cardColor.withValues(alpha: 0.6), size: 12),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                ilce,
+                                style: TextStyle(
+                                    color: cardColor.withValues(alpha: 0.75),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-
-          // İçerik
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // İkon
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.timer_rounded,
-                        size: 56, color: Colors.orange.shade600),
-                  ),
-                  const SizedBox(height: 28),
-
-                  // Başlık
-                  const Text(
-                    "Dinlenme Sürecindesiniz",
-                    style: TextStyle(
-                      color: _textPrimary,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    "Vücudunuzun toparlanması için gereken süreyi bekliyorsunuz. "
-                    "Bir sonraki kan bağışınızı yapabilmenize kalan süre:",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        color: _textSecondary, fontSize: 14, height: 1.5),
-                  ),
-                  const SizedBox(height: 36),
-
-                  // Sayaç kartları
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: _surface,
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                          color: Colors.black.withOpacity(0.07), width: 0.5),
+          // Aksiyon butonları
+          Container(
+            decoration: BoxDecoration(
+              border: Border(
+                  top: BorderSide(color: cardColor.withValues(alpha: 0.08))),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(22),
+                bottomRight: Radius.circular(22),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => _confirmSkip(logId),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey.shade600,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.only(
+                              bottomLeft: Radius.circular(22))),
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _timeBox("${_timeLeft.inDays}", "GÜN"),
-                        _timeDivider(),
-                        _timeBox(
-                            "${_timeLeft.inHours.remainder(24)}", "SAAT"),
-                        _timeDivider(),
-                        _timeBox(
-                            "${_timeLeft.inMinutes.remainder(60)}", "DAKİKA"),
-                        _timeDivider(),
-                        _timeBox(
-                            "${_timeLeft.inSeconds.remainder(60)}", "SANİYE"),
+                        Icon(
+                          Icons.thumb_down_alt_outlined,
+                          size: 15,
+                          color: Colors.grey.shade600,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'İlgilenmiyorum',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey.shade600),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
-                ],
-              ),
+                ),
+                Container(
+                    width: 1, height: 40,
+                    color: cardColor.withValues(alpha: 0.08)),
+                Expanded(
+                  child: TextButton(
+                    onPressed: isAccepted ? null : () => _confirmAccept(logId, cardColor),
+                    style: TextButton.styleFrom(
+                      foregroundColor:
+                          isAccepted ? const Color(0xFF2E7D32) : cardColor,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.only(
+                              bottomRight: Radius.circular(22))),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          isAccepted
+                              ? Icons.check_circle_rounded
+                              : Icons.volunteer_activism_rounded,
+                          size: 15,
+                          color: isAccepted ? const Color(0xFF2E7D32) : cardColor,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          isAccepted ? 'Bağış Onaylandı' : 'Bağış Yapacağım',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: isAccepted
+                                  ? const Color(0xFF2E7D32)
+                                  : cardColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _timeDivider() {
-    return Text(
-      ":",
-      style: TextStyle(
-        fontSize: 22,
-        fontWeight: FontWeight.w900,
-        color: Colors.grey.shade300,
-      ),
-    );
-  }
-
-  Widget _timeBox(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value.padLeft(2, '0'),
-          style: const TextStyle(
-            color: _crimson,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            color: _textSecondary,
-            fontSize: 9,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 0.5,
-          ),
-        ),
-      ],
     );
   }
 
   // ── YARDIMCI ───────────────────────────────────────────────────────────────
 
-  Widget _sectionLabel(String text) {
-    return Text(
-      text.toUpperCase(),
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: _textSecondary,
-        letterSpacing: 0.8,
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: _activePrimary.withValues(alpha: 0.08),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.favorite_border_rounded,
+                  color: _activePrimary.withValues(alpha: 0.4), size: 52),
+            ),
+            const SizedBox(height: 20),
+            const Text('Şu an uygun talep yok',
+                style: TextStyle(
+                    color: _textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const Text(
+              'Kan grubuna uygun yeni bir talep geldiğinde bildirim alacaksın.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: _textSecondary, fontSize: 13, height: 1.5),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: () => _fetchRequests(),
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('Yenile'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: _activePrimary,
+                side: BorderSide(color: _activePrimary.withValues(alpha: 0.5)),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return Scaffold(
+      backgroundColor: _activeBg,
+      body: Column(
+        children: [
+          Container(
+            height: 200,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [_activeGrad1, _activeGrad2],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: const Center(
+              child: CircularProgressIndicator(
+                  color: Colors.white, strokeWidth: 2),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: CircularProgressIndicator(
+                  color: _activePrimary, strokeWidth: 2),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _circle(double size, {required double opacity}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: opacity),
       ),
     );
   }

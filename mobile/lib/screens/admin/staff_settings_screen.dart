@@ -1,495 +1,962 @@
 // mobile/lib/screens/admin/staff_settings_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:flutter/services.dart';
 import '../../models/institution.dart';
-import '../../constants/api_constants.dart';
+import '../../../core/constants/api_constants.dart';
 
 class StaffSettingsScreen extends StatefulWidget {
   final Map<String, dynamic> staff;
   final List<Institution> allInstitutions;
 
-  const StaffSettingsScreen({super.key, required this.staff, required this.allInstitutions});
+  const StaffSettingsScreen(
+      {super.key, required this.staff, required this.allInstitutions});
 
   @override
   State<StaffSettingsScreen> createState() => _StaffSettingsScreenState();
 }
 
-class _StaffSettingsScreenState extends State<StaffSettingsScreen> {
+class _StaffSettingsScreenState extends State<StaffSettingsScreen>
+    with SingleTickerProviderStateMixin {
+  // ── Controller'lar ────────────────────────────────────────────────────────
   late TextEditingController _nameCtrl;
   late TextEditingController _emailCtrl;
-  late TextEditingController _passwordCtrl;
+  late TextEditingController _passCtrl;
   late TextEditingController _customTitleCtrl;
-  
+
   late bool _isActive;
-  Institution? _selectedInstitution; 
-  
+  Institution? _selectedInst;
+  String? _errMsg;
   bool _isSubmitting = false;
   bool _isDeleting = false;
-  String? _formErrorMessage;
 
-  final List<String> unvanListesi = ["Kan Merkezi Sorumlusu", "Başhekim", "Doktor", "Hemşire", "Laborant", "Diğer"];
+  static const _unvanlar = [
+    'Kan Merkezi Sorumlusu',
+    'Başhekim',
+    'Doktor',
+    'Hemşire',
+    'Laborant',
+    'Diğer',
+  ];
   late String _selectedTitle;
+
+  // ── Animasyon ─────────────────────────────────────────────────────────────
+  late AnimationController _fadeCtrl;
+  late Animation<double> _fadeAnim;
+
+  // ── Renk ──────────────────────────────────────────────────────────────────
+  static const Color _accent = Color(0xFF1565C0);
+  static const Color _accentDark = Color(0xFF0D47A1);
+  static const Color _accentLight = Color(0xFF1E88E5);
+  static const Color _accentBg = Color(0xFFE3F2FD);
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.staff['ad_soyad'] ?? "");
-    _emailCtrl = TextEditingController(text: widget.staff['email'] ?? "");
-    _passwordCtrl = TextEditingController(); 
+    final s = widget.staff;
+    _nameCtrl  = TextEditingController(text: s['ad_soyad'] ?? '');
+    _emailCtrl = TextEditingController(text: s['email'] ?? '');
+    _passCtrl  = TextEditingController();
     _customTitleCtrl = TextEditingController();
 
-    _isActive = widget.staff['is_active'] ?? true;
-    
-    // Kurumu eşleştir (Eğer backend'den null gelirse veya bulunamazsa null kalır)
-    final staffKurumId = widget.staff['kurum_id'];
-    _selectedInstitution = widget.allInstitutions.where(
-      (inst) => inst.id.toString() == staffKurumId?.toString()
-    ).firstOrNull;
+    _isActive = s['is_active'] ?? true;
+
+    // Kurumu eşleştir
+    final kidStr = s['kurum_id']?.toString();
+    _selectedInst = widget.allInstitutions
+        .where((i) => i.id.toString() == kidStr)
+        .firstOrNull;
 
     // Ünvanı eşleştir
-    String currentTitle = widget.staff['unvan'] ?? "";
-    if (unvanListesi.contains(currentTitle) || currentTitle.isEmpty) {
-      _selectedTitle = currentTitle.isEmpty ? unvanListesi.first : currentTitle;
+    final currentTitle = s['unvan'] ?? '';
+    if (_unvanlar.contains(currentTitle) || currentTitle.isEmpty) {
+      _selectedTitle =
+          currentTitle.isEmpty ? _unvanlar.first : currentTitle;
     } else {
-      _selectedTitle = "Diğer";
+      _selectedTitle = 'Diğer';
       _customTitleCtrl.text = currentTitle;
     }
+
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 500));
+    _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
   }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
-    _passwordCtrl.dispose();
+    _passCtrl.dispose();
     _customTitleCtrl.dispose();
+    _fadeCtrl.dispose();
     super.dispose();
   }
 
-  String _normalizeTr(String text) {
-    return text.replaceAll('I', 'ı').replaceAll('İ', 'i').replaceAll('Ş', 'ş').replaceAll('Ç', 'ç').replaceAll('Ö', 'ö').replaceAll('Ğ', 'ğ').replaceAll('Ü', 'ü').toLowerCase();
-  }
+  // ── Türkçe normalize ──────────────────────────────────────────────────────
+  String _norm(String t) => t
+      .replaceAll('I', 'ı').replaceAll('İ', 'i')
+      .replaceAll('Ş', 'ş').replaceAll('Ç', 'ç')
+      .replaceAll('Ö', 'ö').replaceAll('Ğ', 'ğ')
+      .replaceAll('Ü', 'ü').toLowerCase();
 
-  // --- AKILLI KURUM ARAMA PENCERESİ ---
-  void _showInstitutionSearchDialog() {
-    TextEditingController searchCtrl = TextEditingController();
-    List<Institution> filteredList = List.from(widget.allInstitutions);
+  // ==========================================================================
+  // KURUM ARAMA DİALOGU
+  // ==========================================================================
+  void _showInstDialog() {
+    final sc = TextEditingController();
+    List<Institution> filtered = List.from(widget.allInstitutions);
 
     showDialog(
       context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              contentPadding: const EdgeInsets.all(16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: MediaQuery.of(context).size.height * 0.5,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: searchCtrl,
-                      decoration: InputDecoration(
-                        hintText: "Kurum veya ilçe ara...",
-                        prefixIcon: const Icon(Icons.search),
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                      ),
-                      onChanged: (val) {
-                        setDialogState(() {
-                          String query = _normalizeTr(val);
-                          filteredList = widget.allInstitutions.where((inst) {
-                            // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
-                            return _normalizeTr(inst.ad).contains(query) || _normalizeTr(inst.ilceAdi).contains(query);
-                          }).toList();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: filteredList.isEmpty 
-                      ? const Center(child: Text("Sonuç bulunamadı."))
-                      : ListView.builder(
-                          itemCount: filteredList.length,
-                          itemBuilder: (context, index) {
-                            final inst = filteredList[index];
-                            bool isSelected = _selectedInstitution?.id == inst.id;
-                            return ListTile(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              tileColor: isSelected ? Colors.blue.shade50 : null,
-                              leading: Icon(
-                                inst.tipi == "Kan Merkezi" ? Icons.bloodtype : Icons.local_hospital,
-                                color: inst.tipi == "Kan Merkezi" ? Colors.red : Colors.blue,
-                              ),
-                              title: Text(inst.ad, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                              // YENİ: inst.ilce yerine inst.ilceAdi kullanıldı
-                              subtitle: Text(inst.ilceAdi, style: const TextStyle(fontSize: 12)),
-                              onTap: () {
-                                setState(() {
-                                  _selectedInstitution = inst;
-                                  _formErrorMessage = null; 
-                                });
-                                Navigator.pop(context);
-                              },
-                            );
-                          },
-                        ),
-                    ),
-                  ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setD) => AlertDialog(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(24)),
+          contentPadding: const EdgeInsets.all(16),
+          title: const Text('Kurum Seç',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 17)),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.of(ctx).size.height * 0.5,
+            child: Column(children: [
+              TextField(
+                controller: sc,
+                decoration: InputDecoration(
+                  hintText: 'Kurum veya ilçe ara...',
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
                 ),
+                onChanged: (v) {
+                  final q = _norm(v);
+                  setD(() {
+                    filtered = widget.allInstitutions
+                        .where((i) =>
+                            _norm(i.ad).contains(q) ||
+                            _norm(i.ilceAdi).contains(q))
+                        .toList();
+                  });
+                },
               ),
-            );
-          }
-        );
-      }
+              const SizedBox(height: 10),
+              Expanded(
+                child: filtered.isEmpty
+                    ? Center(
+                        child: Text('Sonuç bulunamadı',
+                            style: TextStyle(
+                                color: Colors.grey.shade500)))
+                    : ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (_, i) {
+                          final inst = filtered[i];
+                          final isBlood = inst.tipi == 'Kan Merkezi';
+                          final isSel =
+                              _selectedInst?.id == inst.id;
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(10)),
+                            tileColor: isSel
+                                ? const Color(0xFFE3F2FD)
+                                : null,
+                            leading: Container(
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: isBlood
+                                    ? const Color(0xFFFFEBEE)
+                                    : const Color(0xFFE3F2FD),
+                                borderRadius:
+                                    BorderRadius.circular(8),
+                              ),
+                              child: Icon(
+                                isBlood
+                                    ? Icons.bloodtype_rounded
+                                    : Icons.local_hospital_rounded,
+                                size: 18,
+                                color: isBlood
+                                    ? const Color(0xFFD32F2F)
+                                    : const Color(0xFF1565C0),
+                              ),
+                            ),
+                            title: Text(inst.ad,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSel
+                                        ? FontWeight.w800
+                                        : FontWeight.w600)),
+                            subtitle: Text(inst.ilceAdi,
+                                style: const TextStyle(
+                                    fontSize: 11)),
+                            onTap: () {
+                              setState(() {
+                                _selectedInst = inst;
+                                _errMsg = null;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 
-  // --- GÜNCELLEME İŞLEMİ (INLINE HATA YÖNETİMİ İLE) ---
-  Future<void> _updateStaff() async {
-    setState(() => _formErrorMessage = null);
-
-    if (_nameCtrl.text.trim().isEmpty || _emailCtrl.text.trim().isEmpty) {
-      setState(() => _formErrorMessage = "Ad Soyad ve E-posta boş bırakılamaz.");
+  // ==========================================================================
+  // GÜNCELLEME
+  // ==========================================================================
+  Future<void> _update() async {
+    setState(() => _errMsg = null);
+    if (_nameCtrl.text.trim().isEmpty ||
+        _emailCtrl.text.trim().isEmpty) {
+      setState(
+          () => _errMsg = 'Ad Soyad ve E-posta boş bırakılamaz.');
       return;
     }
-    
-    if (_selectedInstitution == null) {
-      setState(() => _formErrorMessage = "Lütfen görev yapılacak bir kurum seçiniz.");
+    if (_selectedInst == null) {
+      setState(
+          () => _errMsg = 'Lütfen görev yapılacak kurumu seçin.');
       return;
     }
-
-    String finalTitle = _selectedTitle == "Diğer" ? _customTitleCtrl.text.trim() : _selectedTitle;
-    if (finalTitle.isEmpty) {
-      setState(() => _formErrorMessage = "Lütfen geçerli bir ünvan girin.");
+    final title = _selectedTitle == 'Diğer'
+        ? _customTitleCtrl.text.trim()
+        : _selectedTitle;
+    if (title.isEmpty) {
+      setState(() => _errMsg = 'Geçerli bir ünvan girin.');
+      return;
+    }
+    if (_passCtrl.text.isNotEmpty && _passCtrl.text.length < 6) {
+      setState(() => _errMsg = 'Şifre en az 6 karakter olmalı.');
       return;
     }
 
     setState(() => _isSubmitting = true);
-    
     try {
-      final body = {
-        "ad_soyad": _nameCtrl.text.trim(),
-        "email": _emailCtrl.text.trim(),
-        "unvan": finalTitle,
-        "kurum_id": _selectedInstitution!.id.toString(), // YENİ: UUID güvencesi
-        "is_active": _isActive,
+      final body = <String, dynamic>{
+        'ad_soyad': _nameCtrl.text.trim(),
+        'email': _emailCtrl.text.trim(),
+        'unvan': title,
+        'kurum_id': _selectedInst!.id.toString(),
+        'is_active': _isActive,
       };
-
-      if (_passwordCtrl.text.trim().isNotEmpty) {
-        if (_passwordCtrl.text.trim().length < 6) {
-          setState(() {
-            _formErrorMessage = "Şifre en az 6 karakter olmalıdır.";
-            _isSubmitting = false;
-          });
-          return;
-        }
-        body["password"] = _passwordCtrl.text.trim();
+      if (_passCtrl.text.trim().isNotEmpty) {
+        body['password'] = _passCtrl.text.trim();
       }
-
-      final response = await http.put(
-        Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'),
-        headers: {"Content-Type": "application/json"},
+      final res = await http.put(
+        Uri.parse(
+            ApiConstants.staffDetailEndpoint(widget.staff['user_id'].toString())),
+        headers: {'Content-Type': 'application/json'},
         body: json.encode(body),
       );
-
-      if (response.statusCode == 200) {
+      if (res.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text("Değişiklikler başarıyla kaydedildi!"), backgroundColor: Colors.green.shade600));
-          Navigator.pop(context, true); 
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Değişiklikler kaydedildi!'),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ));
+          Navigator.pop(context, true);
         }
       } else {
-        String errorDetail = "Güncelleme başarısız (${response.statusCode})";
+        String det = 'Güncelleme başarısız (${res.statusCode})';
         try {
-          final errJson = json.decode(utf8.decode(response.bodyBytes));
-          if (errJson['detail'] != null) {
-            errorDetail = errJson['detail'] is List ? "Geçersiz format" : errJson['detail'];
-          }
-        } catch(e) {}
-        setState(() => _formErrorMessage = errorDetail);
+          final e = json.decode(utf8.decode(res.bodyBytes));
+          if (e['detail'] is String) det = e['detail'];
+        } catch (_) {}
+        setState(() => _errMsg = det);
       }
-    } catch (e) {
-      setState(() => _formErrorMessage = "Sunucuya bağlanılamadı. Lütfen bağlantınızı kontrol edin.");
+    } catch (_) {
+      setState(
+          () => _errMsg = 'Sunucuya bağlanılamadı. Bağlantınızı kontrol edin.');
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
-  // --- SİLME İŞLEMİ ---
-  Future<void> _deleteStaff() async {
-    bool? confirm = await showDialog(
+  // ==========================================================================
+  // SİLME
+  // ==========================================================================
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-            SizedBox(width: 10),
-            Text("Kalıcı Silme", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-          ],
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24)),
+        title: const Row(children: [
+          Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFE53935), size: 26),
+          SizedBox(width: 10),
+          Text('Kalıcı Silme',
+              style: TextStyle(
+                  color: Color(0xFFE53935),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 17)),
+        ]),
+        content: const Text(
+          'Bu personelin hesabı ve tüm sistem erişimi kalıcı olarak silinecek.\n\nBu işlem geri alınamaz.',
+          style: TextStyle(fontSize: 14, height: 1.5),
         ),
-        content: const Text("Bu personelin hesabı ve sistem erişimi tamamen kalıcı olarak silinecektir. Bu işlem geri alınamaz. Onaylıyor musunuz?", style: TextStyle(fontSize: 14)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("İptal Et", style: TextStyle(color: Colors.grey))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('İptal',
+                style: TextStyle(color: Colors.grey.shade600)),
+          ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-            onPressed: () => Navigator.pop(context, true), 
-            child: const Text("Evet, Tamamen Sil")
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sil',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
-
-    if (confirm != true) return;
+    if (confirmed != true) return;
 
     setState(() {
       _isDeleting = true;
-      _formErrorMessage = null;
+      _errMsg = null;
     });
-
     try {
-      final response = await http.delete(Uri.parse('${ApiConstants.staffEndpoint}${widget.staff['user_id']}'));
-      
-      if (response.statusCode == 200) {
+      final res = await http.delete(Uri.parse(
+          ApiConstants.staffDetailEndpoint(widget.staff['user_id'].toString())));
+      if (res.statusCode == 200) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Personel başarıyla sistemden silindi."), backgroundColor: Colors.red));
-          Navigator.pop(context, true); 
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: const Text('Personel silindi.'),
+            backgroundColor: const Color(0xFFE53935),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ));
+          Navigator.pop(context, true);
         }
       } else {
-        setState(() => _formErrorMessage = "Silme işlemi başarısız oldu (${response.statusCode}).");
+        setState(() =>
+            _errMsg = 'Silme başarısız (${res.statusCode}).');
       }
-    } catch (e) {
-      setState(() => _formErrorMessage = "Sunucu bağlantı hatası oluştu.");
+    } catch (_) {
+      setState(() => _errMsg = 'Sunucu bağlantı hatası.');
     } finally {
       if (mounted) setState(() => _isDeleting = false);
     }
   }
 
-  Widget _buildModernTextField(TextEditingController controller, String hint, IconData icon, {bool isPassword = false, List<TextInputFormatter>? formatters}) {
-    return TextField(
-      controller: controller,
-      obscureText: isPassword,
-      inputFormatters: formatters,
-      enabled: !_isSubmitting && !_isDeleting,
-      onChanged: (v) => setState(() => _formErrorMessage = null),
-      decoration: InputDecoration(
-        labelText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-        prefixIcon: Icon(icon, color: Colors.grey.shade600),
-        filled: true,
-        fillColor: (_isSubmitting || _isDeleting) ? Colors.grey.shade200 : Colors.grey.shade100,
-        contentPadding: const EdgeInsets.symmetric(vertical: 18),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+  // ==========================================================================
+  // BUILD
+  // ==========================================================================
+  @override
+  Widget build(BuildContext context) {
+    final bool busy = _isSubmitting || _isDeleting;
+    final String ad = widget.staff['ad_soyad'] ?? 'Personel';
+    final String unvan = widget.staff['unvan'] ?? '—';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6F8),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: SizedBox(
+            height: 56,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18)),
+              ),
+              onPressed: busy ? null : _update,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 22, height: 22,
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2))
+                  : const Text('Değişiklikleri Kaydet',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+          ),
+        ),
+      ),
+      body: FadeTransition(
+        opacity: _fadeAnim,
+        child: CustomScrollView(
+          slivers: [
+            // ── Header ───────────────────────────────────────────────────
+            SliverToBoxAdapter(child: _buildHeader(ad, unvan)),
+
+            // ── Form içerikleri ───────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // Hesap Durumu
+                  _sectionLabel('Hesap Erişimi'),
+                  const SizedBox(height: 10),
+                  _buildStatusToggle(busy),
+                  const SizedBox(height: 22),
+
+                  // Kurum
+                  _sectionLabel('Görev Yaptığı Kurum'),
+                  const SizedBox(height: 10),
+                  _buildInstPicker(busy),
+                  const SizedBox(height: 22),
+
+                  // Kişisel Bilgiler
+                  _sectionLabel('Kişisel Bilgiler'),
+                  const SizedBox(height: 10),
+                  _buildInfoCard(busy),
+                  const SizedBox(height: 22),
+
+                  // Hata
+                  if (_errMsg != null) ...[
+                    _buildErrBanner(_errMsg!),
+                    const SizedBox(height: 22),
+                  ],
+
+                  // Tehlikeli işlemler
+                  _sectionLabel('Tehlikeli İşlemler',
+                      color: const Color(0xFFE53935)),
+                  const SizedBox(height: 10),
+                  _buildDangerZone(busy),
+                ]),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
-      appBar: AppBar(
-        title: const Text("Personel Ayarları", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Hesap Erişimi (Yetkilendirme)", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 8),
-            Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]),
-              child: SwitchListTile(
-                title: Text(_isActive ? "Hesap Aktif (Sisteme Girebilir)" : "Hesap Dondurulmuş (Giriş Engelli)", 
-                  style: TextStyle(fontWeight: FontWeight.bold, color: _isActive ? Colors.green.shade700 : Colors.red.shade700)
-                ),
-                subtitle: const Text("İşten ayrılan personelin hesabını buradan askıya alabilirsiniz.", style: TextStyle(fontSize: 12)),
-                value: _isActive,
-                activeColor: Colors.green,
-                onChanged: (_isSubmitting || _isDeleting) ? null : (val) => setState(() {
-                  _isActive = val;
-                  _formErrorMessage = null;
-                }),
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            const Text("Görev Yaptığı Kurum", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: (_isSubmitting || _isDeleting) ? null : _showInstitutionSearchDialog,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: (_formErrorMessage != null && _selectedInstitution == null) 
-                        ? Colors.red.shade300 
-                        : Colors.blue.shade200
-                  )
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.local_hospital_outlined, color: Colors.blue.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        _selectedInstitution != null 
-                            // YENİ: _selectedInstitution!.ilceAdi kullanıldı
-                            ? "${_selectedInstitution!.ad} (${_selectedInstitution!.ilceAdi})" 
-                            : "Görev Yapacağı Kurumu Seç",
-                        style: TextStyle(
-                          color: _selectedInstitution != null ? Colors.blue.shade900 : Colors.grey.shade600, 
-                          fontSize: 15, 
-                          fontWeight: _selectedInstitution != null ? FontWeight.bold : FontWeight.normal
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(Icons.edit, color: Colors.blue.shade700, size: 20),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            const Text("Kimlik ve Güvenlik Bilgileri", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]),
-              child: Column(
-                children: [
-                  _buildModernTextField(_nameCtrl, "Ad Soyad", Icons.person_outline, formatters: [FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))]),
-                  const SizedBox(height: 15),
-                  
-                  _buildModernTextField(_emailCtrl, "E-posta Adresi", Icons.email_outlined),
-                  const SizedBox(height: 15),
-                  
-                  _buildModernTextField(_passwordCtrl, "Yeni Şifre (Değiştirmeyecekseniz boş bırakın)", Icons.lock_outline, isPassword: true),
-                  const SizedBox(height: 15),
-
-                  DropdownButtonFormField<String>(
-                    value: _selectedTitle,
-                    icon: Icon(Icons.keyboard_arrow_down, color: Colors.grey.shade600),
-                    decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.badge_outlined, color: Colors.grey.shade600),
-                      filled: true,
-                      fillColor: (_isSubmitting || _isDeleting) ? Colors.grey.shade200 : Colors.grey.shade100,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 18),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    ),
-                    items: unvanListesi.map((unvan) => DropdownMenuItem(value: unvan, child: Text(unvan))).toList(),
-                    onChanged: (_isSubmitting || _isDeleting) ? null : (val) {
-                      if (val != null) setState(() {
-                        _selectedTitle = val;
-                        _formErrorMessage = null;
-                      });
-                    },
-                  ),
-
-                  if (_selectedTitle == "Diğer") ...[
-                    const SizedBox(height: 15),
-                    _buildModernTextField(_customTitleCtrl, "Lütfen özel ünvanı yazınız", Icons.edit_outlined),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 25),
-
-            if (_formErrorMessage != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.shade200)
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.error_outline, color: Colors.red.shade700, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        _formErrorMessage!,
-                        style: TextStyle(color: Colors.red.shade800, fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-            const Text("Tehlikeli İşlemler", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50, 
-                borderRadius: BorderRadius.circular(16), 
-                border: Border.all(color: Colors.red.shade200)
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("Hesabı Tamamen Sil", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Text("Bu işlem geri alınamaz. Personelin tüm yetkileri iptal edilecek ve veri tabanından kalıcı olarak silinecektir.", style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red, 
-                        foregroundColor: Colors.white, 
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))
-                      ),
-                      onPressed: (_isSubmitting || _isDeleting) ? null : _deleteStaff,
-                      icon: _isDeleting 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Icon(Icons.delete_forever),
-                      label: Text(_isDeleting ? "Siliniyor..." : "Personeli Sistemden Sil", style: const TextStyle(fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
+  // ==========================================================================
+  // HEADER
+  // ==========================================================================
+  Widget _buildHeader(String ad, String unvan) {
+    return Container(
+      height: 190,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_accentDark, _accent, _accentLight],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2C3E50),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              elevation: 0,
-            ),
-            onPressed: (_isSubmitting || _isDeleting) ? null : _updateStaff,
-            child: _isSubmitting
-                ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                : const Text("Değişiklikleri Kaydet", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      child: Stack(children: [
+        Positioned(
+          top: -25, right: -15,
+          child: Container(
+            width: 160, height: 160,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.07)),
           ),
         ),
+        Positioned(
+          bottom: -50, left: -30,
+          child: Container(
+            width: 180, height: 180,
+            decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.04)),
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Geri
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.17),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.arrow_back_ios_new_rounded,
+                            color: Colors.white, size: 14),
+                        SizedBox(width: 6),
+                        Text('Geri',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                // Avatar satırı
+                Row(children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    child: Text(
+                      ad.isNotEmpty ? ad[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('PERSONEL AYARLARI',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 1.0)),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(ad,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                      Text(unvan,
+                          style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.78),
+                              fontSize: 13)),
+                    ]),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // HESAP DURUMU TOGGLE
+  // ==========================================================================
+  Widget _buildStatusToggle(bool busy) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: _isActive
+              ? Colors.green.shade200
+              : Colors.red.shade200,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+              color: (_isActive ? Colors.green : Colors.red)
+                  .withValues(alpha: 0.08),
+              blurRadius: 10,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(children: [
+        Container(
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: _isActive
+                ? const Color(0xFFE8F5E9)
+                : const Color(0xFFFFEBEE),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            _isActive
+                ? Icons.check_circle_rounded
+                : Icons.block_rounded,
+            color: _isActive
+                ? Colors.green.shade600
+                : const Color(0xFFE53935),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+            Text(
+              _isActive
+                  ? 'Hesap Aktif'
+                  : 'Hesap Dondurulmuş',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                color: _isActive
+                    ? Colors.green.shade700
+                    : const Color(0xFFE53935),
+              ),
+            ),
+            Text(
+              _isActive
+                  ? 'Personel sisteme giriş yapabilir.'
+                  : 'Giriş erişimi engellenmiş.',
+              style: TextStyle(
+                  fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ]),
+        ),
+        Switch.adaptive(
+          value: _isActive,
+          activeColor: Colors.green.shade600,
+          inactiveThumbColor: Colors.grey.shade400,
+          onChanged: busy
+              ? null
+              : (v) => setState(() {
+                    _isActive = v;
+                    _errMsg = null;
+                  }),
+        ),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // KURUM SEÇİCİ
+  // ==========================================================================
+  Widget _buildInstPicker(bool busy) {
+    final hasError = _errMsg != null && _selectedInst == null;
+    return GestureDetector(
+      onTap: busy ? null : _showInstDialog,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: _selectedInst != null
+              ? const Color(0xFFE3F2FD)
+              : Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: hasError
+                ? const Color(0xFFEF9A9A)
+                : _selectedInst != null
+                    ? const Color(0xFF1565C0).withValues(alpha: 0.4)
+                    : Colors.grey.shade200,
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3)),
+          ],
+        ),
+        child: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: _selectedInst != null
+                  ? _accentBg
+                  : Colors.grey.shade100,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _selectedInst?.tipi == 'Kan Merkezi'
+                  ? Icons.bloodtype_rounded
+                  : Icons.local_hospital_rounded,
+              color: _selectedInst != null
+                  ? _accent
+                  : Colors.grey.shade400,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Text(
+                _selectedInst != null
+                    ? _selectedInst!.ad
+                    : 'Kurum seçiniz...',
+                style: TextStyle(
+                  fontWeight: _selectedInst != null
+                      ? FontWeight.w700
+                      : FontWeight.normal,
+                  fontSize: 14,
+                  color: _selectedInst != null
+                      ? const Color(0xFF0D47A1)
+                      : Colors.grey.shade500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (_selectedInst != null) ...[
+                const SizedBox(height: 2),
+                Text(_selectedInst!.ilceAdi,
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.blue.shade400)),
+              ],
+            ]),
+          ),
+          Icon(Icons.edit_outlined,
+              color:
+                  _selectedInst != null ? _accent : Colors.grey.shade400,
+              size: 18),
+        ]),
+      ),
+    );
+  }
+
+  // ==========================================================================
+  // KİŞİSEL BİLGİLER KARTI
+  // ==========================================================================
+  Widget _buildInfoCard(bool busy) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4))
+        ],
+      ),
+      child: Column(children: [
+        _modernField(
+          ctrl: _nameCtrl,
+          label: 'Ad Soyad',
+          icon: Icons.person_outline_rounded,
+          formatters: [
+            FilteringTextInputFormatter.allow(
+                RegExp(r'[a-zA-ZğüşıöçĞÜŞİÖÇ\s]'))
+          ],
+          enabled: !busy,
+        ),
+        const SizedBox(height: 14),
+        _modernField(
+          ctrl: _emailCtrl,
+          label: 'E-posta Adresi',
+          icon: Icons.email_outlined,
+          enabled: !busy,
+        ),
+        const SizedBox(height: 14),
+        _modernField(
+          ctrl: _passCtrl,
+          label: 'Yeni Şifre (boş = değişmez)',
+          icon: Icons.lock_outline_rounded,
+          isPassword: true,
+          enabled: !busy,
+        ),
+        const SizedBox(height: 14),
+        // Ünvan dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedTitle,
+              isExpanded: true,
+              icon: Icon(Icons.keyboard_arrow_down_rounded,
+                  color: _accent),
+              items: _unvanlar
+                  .map((u) => DropdownMenuItem(
+                      value: u,
+                      child: Text(u,
+                          style: const TextStyle(fontSize: 14))))
+                  .toList(),
+              onChanged: busy
+                  ? null
+                  : (v) => setState(() {
+                        _selectedTitle = v!;
+                        _errMsg = null;
+                      }),
+            ),
+          ),
+        ),
+        if (_selectedTitle == 'Diğer') ...[
+          const SizedBox(height: 14),
+          _modernField(
+            ctrl: _customTitleCtrl,
+            label: 'Özel Ünvan',
+            icon: Icons.edit_outlined,
+            enabled: !busy,
+          ),
+        ],
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // TEHLİKELİ BÖLGE
+  // ==========================================================================
+  Widget _buildDangerZone(bool busy) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F8),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFFFCDD2), width: 1.5),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+        Row(children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: Color(0xFFE53935), size: 20),
+          const SizedBox(width: 8),
+          const Text('Hesabı Tamamen Sil',
+              style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 15,
+                  color: Color(0xFFE53935))),
+        ]),
+        const SizedBox(height: 8),
+        Text(
+          'Bu işlem geri alınamaz. Personelin tümü sistem erişimi kalıcı olarak silinecektir.',
+          style: TextStyle(
+              fontSize: 12,
+              color: Colors.red.shade400,
+              height: 1.5),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          height: 50,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE53935),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            onPressed: busy ? null : _delete,
+            icon: _isDeleting
+                ? const SizedBox(
+                    width: 18, height: 18,
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.delete_forever_rounded, size: 20),
+            label: Text(
+                _isDeleting ? 'Siliniyor...' : 'Personeli Sistemden Sil',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // HATA BANNERI
+  // ==========================================================================
+  Widget _buildErrBanner(String msg) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFEF9A9A)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.error_outline_rounded,
+            color: Color(0xFFE53935), size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(msg,
+              style: const TextStyle(
+                  color: Color(0xFFC62828),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500)),
+        ),
+      ]),
+    );
+  }
+
+  // ==========================================================================
+  // YARDIMCILAR
+  // ==========================================================================
+  Widget _sectionLabel(String text, {Color color = const Color(0xFF607D8B)}) =>
+      Text(
+        text,
+        style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: color,
+            fontSize: 12,
+            letterSpacing: 0.5),
+      );
+
+  Widget _modernField({
+    required TextEditingController ctrl,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    List<TextInputFormatter>? formatters,
+    bool enabled = true,
+  }) {
+    return TextField(
+      controller: ctrl,
+      obscureText: isPassword,
+      inputFormatters: formatters,
+      enabled: enabled,
+      onChanged: (_) => setState(() => _errMsg = null),
+      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle:
+            TextStyle(color: Colors.grey.shade500, fontSize: 13),
+        prefixIcon: Icon(icon, color: _accent, size: 20),
+        filled: true,
+        fillColor: enabled ? Colors.grey.shade50 : Colors.grey.shade100,
+        contentPadding: const EdgeInsets.symmetric(vertical: 16),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide.none),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                BorderSide(color: Colors.grey.shade200, width: 1.0)),
+        focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide:
+                const BorderSide(color: _accent, width: 1.5)),
       ),
     );
   }

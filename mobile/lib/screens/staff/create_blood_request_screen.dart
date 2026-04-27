@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:ui';
 import 'package:http/http.dart' as http;
-import '../../constants/api_constants.dart';
+import '../../../core/constants/api_constants.dart';
 
 class CreateBloodRequestScreen extends StatefulWidget {
   final String staffUserId;
@@ -104,18 +104,32 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen>
     }
     setState(() => _isLoading = true);
 
+    // Aciliyet değerlerini backend enum değerleriyle eşleştir
+    const urgencyMap = {
+      "Normal": "Normal",
+      "Acil":   "Acil",
+      "Afet":   "Afet",
+    };
+
     try {
+      final body = {
+        "istenen_kan_grubu": selectedBloodType,
+        "unite_sayisi": unitCount,
+        "aciliyet_durumu": urgencyMap[urgency] ?? urgency,
+        "gecerlilik_suresi_saat": _selectedDurationHours,
+      };
+      debugPrint("[CreateRequest] Gönderilen body: ${jsonEncode(body)}");
+      debugPrint("[CreateRequest] URL: ${ApiConstants.requestsEndpoint}?personel_id=${widget.staffUserId}");
+
       final response = await http.post(
         Uri.parse(
             '${ApiConstants.requestsEndpoint}?personel_id=${widget.staffUserId}'),
         headers: {"Content-Type": "application/json"},
-        body: jsonEncode({
-          "istenen_kan_grubu": selectedBloodType,
-          "unite_sayisi": unitCount,
-          "aciliyet_durumu": urgency,
-          "gecerlilik_suresi_saat": _selectedDurationHours,
-        }),
+        body: jsonEncode(body),
       );
+
+      debugPrint("[CreateRequest] Status: ${response.statusCode}");
+      debugPrint("[CreateRequest] Response: ${utf8.decode(response.bodyBytes)}");
 
       if (!mounted) return;
 
@@ -140,7 +154,12 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen>
           ),
         );
       } else {
-        _showSnackBar("Sunucu Hatası (${response.statusCode}): Talebiniz oluşturulamadı.",
+        String errorDetail = "Talebiniz oluşturulamadı.";
+        try {
+          final errBody = jsonDecode(utf8.decode(response.bodyBytes));
+          errorDetail = errBody['detail']?.toString() ?? errorDetail;
+        } catch (_) {}
+        _showSnackBar("Sunucu Hatası (${response.statusCode}): $errorDetail",
             isError: true);
       }
     } catch (e) {
@@ -152,6 +171,7 @@ class _CreateBloodRequestScreenState extends State<CreateBloodRequestScreen>
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
 
   void _showSnackBar(String message, {bool isError = false}) {
     ScaffoldMessenger.of(context).showSnackBar(

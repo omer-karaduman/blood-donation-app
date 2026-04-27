@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'dart:async';
 import 'dart:convert';
-import '../../constants/api_constants.dart';
+import '../../../core/constants/api_constants.dart';
 
 class BloodRequestDetailScreen extends StatefulWidget {
   final Map<String, dynamic> requestData;
@@ -819,6 +819,12 @@ class _BloodRequestDetailScreenState extends State<BloodRequestDetailScreen>
       reactionLight = _blueLight;
       reactionIcon = Icons.thumb_up_alt_rounded;
       reactionLabel = "Kabul Etti";
+    } else if (reaction == 'Gormezden_Geldi') {
+      reactionColor = _textSecond;
+      reactionBg = const Color(0xFFF3F4F6);
+      reactionLight = const Color(0xFFE5E7EB);
+      reactionIcon = Icons.do_not_disturb_rounded;
+      reactionLabel = "İlgilenmedi";
     } else if (reaction == 'Red') {
       reactionColor = _red;
       reactionBg = _redSoft;
