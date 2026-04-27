@@ -11,7 +11,7 @@ load_dotenv()
 # ── Veritabanı ────────────────────────────────────────────────────────────────
 DATABASE_URL: str = os.getenv(
     "DATABASE_URL",
-    "postgresql://admin:password123@localhost:5433/blood_donation"
+    "postgresql://blood_donation_db_o17w_user:1chpoC27lJRBk1gChEcdrS3N9eGF3A7s@dpg-d7b07rffte5s73d1bns0-a/blood_donation_db_o17w"
 )
 
 # ── Firebase ──────────────────────────────────────────────────────────────────
